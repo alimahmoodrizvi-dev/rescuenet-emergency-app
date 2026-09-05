@@ -1,0 +1,7 @@
+<resources>
+    <!-- Matches ui/theme/Color.kt's RescueNavy — used at the XML/manifest level for the
+         window background/status bar before Compose's setContent{} takes over, and for the
+         launcher icon background. -->
+    <color name="rescue_navy">#0B1F3A</color>
+    <color name="rescue_white">#FFFFFF</color>
+</resources>

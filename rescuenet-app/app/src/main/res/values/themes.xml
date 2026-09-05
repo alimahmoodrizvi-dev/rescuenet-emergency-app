@@ -1,0 +1,18 @@
+<resources>
+    <!-- Referenced by AndroidManifest.xml (android:theme). This app renders everything
+         through Jetpack Compose (see MainActivity.kt's setContent{} + RescueNetTheme) — this
+         XML theme only covers the brief window setup before Compose takes over (background
+         color, status bar), which Android requires regardless of whether the UI itself is
+         built with Compose or XML layouts.
+
+         Deliberately extends a plain platform theme (android:Theme...) rather than a
+         Material Components theme (Theme.Material3...), since this project doesn't depend
+         on com.google.android.material — pulling that in just for this one XML file would
+         be an unnecessary dependency when Compose's own Material3 theming
+         (ui/theme/Theme.kt) is what actually styles the app's UI. -->
+    <style name="Theme.RescueNet" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/rescue_navy</item>
+        <item name="android:statusBarColor">@color/rescue_navy</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

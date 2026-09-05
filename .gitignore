@@ -1,0 +1,48 @@
+# ============================================================
+# Android app (rescuenet-app/)
+# ============================================================
+**/build/
+**/.gradle/
+**/captures/
+**/local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+**/.cxx/
+**/.idea/workspace.xml
+**/.idea/tasks.xml
+**/*.iml
+**/.kotlin/
+
+# Keep the Gradle wrapper jar — it's small (~43KB) and required for anyone cloning the repo
+# to build without installing Gradle separately. Do NOT add gradle-wrapper.jar to any of the
+# patterns above.
+
+# ============================================================
+# Python backend (rescuenet-backend/)
+# ============================================================
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/*.db
+**/*.db-journal
+**/.env
+**/venv/
+**/.venv/
+**/*.egg-info/
+
+# ============================================================
+# Node / React command center (rescuenet-command-center/)
+# ============================================================
+**/node_modules/
+**/dist/
+**/.vite/
+**/*.local
+
+# ============================================================
+# General
+# ============================================================
+.DS_Store
+Thumbs.db
+*.log
