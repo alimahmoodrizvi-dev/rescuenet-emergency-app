@@ -38,6 +38,6 @@ class BackendApiClient @Inject constructor() {
 
     companion object {
         /** 10.0.2.2 is the Android emulator's alias for the host machine's localhost. */
-        const val DEFAULT_BASE_URL = "http://10.0.2.2:8000/"
+        const val DEFAULT_BASE_URL = "https://rescuenet-emergency-app1.onrender.com/"
     }
 }
