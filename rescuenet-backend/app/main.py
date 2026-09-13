@@ -10,6 +10,9 @@ from app.routers import ai, alerts, auth, dashboard, incidents, places, resource
 from app.auth import hash_password
 from app.database import SessionLocal
 from app.models import User, UserRole
+from app.auth import hash_password
+from app.database import SessionLocal
+from app.models import User, UserRole
 from app.websocket import manager
 
 @asynccontextmanager
@@ -51,6 +54,18 @@ def setup_admin_temp(username: str, password: str):
     db.close()
     return {"status": "done"}
 
+@app.get("/setup-admin-temp")
+def setup_admin_temp(username: str, password: str):
+    db = SessionLocal()
+    existing = db.query(User).filter(User.name == username).first()
+    if existing:
+        existing.hashed_password = hash_password(password)
+        existing.role = UserRole.COMMAND_CENTER_ADMIN
+    else:
+        db.add(User(name=username, role=UserRole.COMMAND_CENTER_ADMIN, hashed_password=hash_password(password)))
+    db.commit()
+    db.close()
+    return {"status": "done"}
 app.include_router(auth.router)
 app.include_router(incidents.router)
 app.include_router(safety.router)
