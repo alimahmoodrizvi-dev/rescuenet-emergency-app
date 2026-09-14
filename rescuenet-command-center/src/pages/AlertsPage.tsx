@@ -38,6 +38,16 @@ export function AlertsPage() {
     }
   }
 
+  async function clearAlert(id: string) {
+    if (!confirm("Delete this alert? This can't be undone.")) return;
+    try {
+      await api.clearAlert(id);
+      setAlerts((prev) => prev.filter((a) => a.id !== id));
+    } catch {
+      setError("Couldn't delete alert — you may need Rescue Operator or Admin role.");
+    }
+  }
+
   return (
     <div>
       <div className="page-header">
@@ -54,6 +64,7 @@ export function AlertsPage() {
                 <th>Message</th>
                 <th></th>
                 <th>Created</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -68,11 +79,16 @@ export function AlertsPage() {
                     <DemoTag isDemo={a.is_demo} />
                   </td>
                   <td>{new Date(a.created_at + "Z").toLocaleTimeString()}</td>
+                  <td>
+                    <button className="btn" style={{ fontSize: 12, color: "#d8261c" }} onClick={() => clearAlert(a.id)}>
+                      Delete
+                    </button>
+                  </td>
                 </tr>
               ))}
               {alerts.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: "center", color: "var(--text-dim)", padding: 24 }}>
+                  <td colSpan={6} style={{ textAlign: "center", color: "var(--text-dim)", padding: 24 }}>
                     No active alerts.
                   </td>
                 </tr>
