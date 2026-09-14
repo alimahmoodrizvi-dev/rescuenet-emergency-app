@@ -69,8 +69,16 @@ export interface AlertResponse {
   severity: AlertSeverity;
   message: string;
   is_demo: boolean;
+  area_geojson: string | null;
   created_at: string;
   expires_at: string | null;
+}
+
+// Parsed shape of AlertResponse.area_geojson — a simple circle, not a full GeoJSON polygon.
+export interface AffectedAreaCircle {
+  lat: number;
+  lng: number;
+  radius_km: number;
 }
 
 export interface DashboardStatistics {

@@ -80,6 +80,19 @@ export const api = {
 
   listResources: () => request<ResourceResponse[]>("/api/resources"),
 
+  createResource: (
+    name: string,
+    type: string,
+    latitude: number | null,
+    longitude: number | null,
+    capacity: number,
+    capabilities: string,
+  ) =>
+    request<ResourceResponse>("/api/resources", {
+      method: "POST",
+      body: JSON.stringify({ name, type, latitude, longitude, capacity, capabilities }),
+    }),
+
   assignResource: (resourceId: string, incidentId: string, etaMinutes?: number) =>
     request(`/api/resources/${resourceId}/assign`, {
       method: "POST",
@@ -97,10 +110,16 @@ export const api = {
 
   listAlerts: () => request<AlertResponse[]>("/api/alerts"),
 
-  createAlert: (type: string, severity: string, message: string, isDemo: boolean) =>
+  createAlert: (
+    type: string,
+    severity: string,
+    message: string,
+    isDemo: boolean,
+    areaGeojson?: string | null,
+  ) =>
     request<AlertResponse>("/api/alerts", {
       method: "POST",
-      body: JSON.stringify({ type, severity, message, is_demo: isDemo }),
+      body: JSON.stringify({ type, severity, message, is_demo: isDemo, area_geojson: areaGeojson ?? null }),
     }),
 
   dashboardStatistics: () => request<DashboardStatistics>("/api/dashboard/statistics"),
