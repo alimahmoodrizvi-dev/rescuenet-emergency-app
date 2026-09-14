@@ -4,7 +4,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { api, ApiError } from "../api/client";
 import type {
-  AffectedAreaCircle, AlertResponse, AlertSeverity, AlertType,
+  AffectedAreaCircle, AlertResponse, AlertSeverity, AlertType, HazardTypeResponse,
   HospitalResponse, IncidentResponse, ResourceResponse, ResourceType, ShelterResponse, Severity,
 } from "../api/types";
 
@@ -26,25 +26,11 @@ const severityColor: Record<string, string> = {
   RESOLVED: "#2fa84f",
 };
 
-// Color per hazard type for affected-area circles — grouped by what the hazard physically is.
-const hazardColor: Record<AlertType, string> = {
-  FIRE_WARNING: "#d8261c",
-  FLOOD_WARNING: "#1c7fd6",
-  EARTHQUAKE_WARNING: "#8a5a2b",
-  EVACUATION_ORDER: "#8a2be2",
-  ROAD_CLOSURE: "#5f5e5a",
-  SHELTER_OPENING: "#2fa84f",
-  MISSING_PERSON: "#d4537e",
-};
-
 const RESOURCE_TYPES: ResourceType[] = [
   "AMBULANCE", "RESCUE_TEAM", "FIRE_TRUCK", "BOAT", "MEDICAL_TEAM", "SHELTER", "VOLUNTEER",
 ];
-const HAZARD_TYPES: AlertType[] = [
-  "FIRE_WARNING", "FLOOD_WARNING", "EARTHQUAKE_WARNING", "EVACUATION_ORDER",
-  "ROAD_CLOSURE", "SHELTER_OPENING", "MISSING_PERSON",
-];
 const HAZARD_SEVERITIES: AlertSeverity[] = ["CRITICAL", "WARNING", "INFORMATION"];
+const FALLBACK_HAZARD_COLOR = "#8a93a6"; // used for alerts whose hazard type was later deleted from the catalog
 
 const KARACHI_CENTER: [number, number] = [24.8607, 67.0300];
 
@@ -83,6 +69,7 @@ export function MapPage({ incidents }: { incidents: IncidentResponse[] }) {
   const [shelters, setShelters] = useState<ShelterResponse[]>([]);
   const [hospitals, setHospitals] = useState<HospitalResponse[]>([]);
   const [alerts, setAlerts] = useState<AlertResponse[]>([]);
+  const [hazardTypes, setHazardTypes] = useState<HazardTypeResponse[]>([]);
 
   const [mode, setMode] = useState<Mode>("view");
   const [pendingLatLng, setPendingLatLng] = useState<{ lat: number; lng: number } | null>(null);
@@ -95,7 +82,7 @@ export function MapPage({ incidents }: { incidents: IncidentResponse[] }) {
   const [resCapacity, setResCapacity] = useState(1);
 
   // add-area form state
-  const [hazardType, setHazardType] = useState<AlertType>("FIRE_WARNING");
+  const [hazardType, setHazardType] = useState<AlertType>("");
   const [hazardSeverity, setHazardSeverity] = useState<AlertSeverity>("WARNING");
   const [hazardRadiusKm, setHazardRadiusKm] = useState(1);
   const [hazardMessage, setHazardMessage] = useState("");
@@ -109,13 +96,26 @@ export function MapPage({ incidents }: { incidents: IncidentResponse[] }) {
   function refreshAlerts() {
     api.listAlerts().then(setAlerts).catch(() => {});
   }
+  function refreshHazardTypes() {
+    api.listHazardTypes().then((types) => {
+      setHazardTypes(types);
+      setHazardType((current) => (types.some((t) => t.name === current) ? current : (types[0]?.name ?? "")));
+    }).catch(() => {});
+  }
 
   useEffect(() => {
     refreshResources();
     api.listShelters().then(setShelters).catch(() => {});
     api.listHospitals().then(setHospitals).catch(() => {});
     refreshAlerts();
+    refreshHazardTypes();
   }, []);
+
+  // Looks up a hazard's display color from the live catalog, falling back gracefully if the
+  // catalog entry was deleted after the alert was created.
+  function colorForHazard(name: string): string {
+    return hazardTypes.find((t) => t.name === name)?.color ?? FALLBACK_HAZARD_COLOR;
+  }
 
   const located = incidents.filter((i) => i.latitude != null && i.longitude != null);
 
@@ -157,6 +157,10 @@ export function MapPage({ incidents }: { incidents: IncidentResponse[] }) {
 
   async function submitArea() {
     if (!pendingLatLng) return;
+    if (!hazardType) {
+      setFormError("Add a hazard type on the Alerts page first.");
+      return;
+    }
     if (!hazardMessage.trim()) {
       setFormError("Enter a short description first.");
       return;
@@ -269,9 +273,10 @@ export function MapPage({ incidents }: { incidents: IncidentResponse[] }) {
             Center: {pendingLatLng.lat.toFixed(4)}, {pendingLatLng.lng.toFixed(4)}
           </p>
           <label style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Hazard type</label>
-          <select value={hazardType} onChange={(e) => setHazardType(e.target.value as AlertType)} style={{ width: "100%", marginBottom: 10 }}>
-            {HAZARD_TYPES.map((t) => (
-              <option key={t} value={t}>{t.replace("_", " ")}</option>
+          <select value={hazardType} onChange={(e) => setHazardType(e.target.value)} style={{ width: "100%", marginBottom: 10 }}>
+            {hazardTypes.length === 0 && <option value="">No hazard types yet — add one on the Alerts page</option>}
+            {hazardTypes.map((t) => (
+              <option key={t.id} value={t.name}>{t.name.replace(/_/g, " ")}</option>
             ))}
           </select>
           <label style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Severity</label>
@@ -342,7 +347,7 @@ export function MapPage({ incidents }: { incidents: IncidentResponse[] }) {
         {alerts.map((a) => {
           const area = parseArea(a.area_geojson);
           if (!area) return null;
-          const color = hazardColor[a.type] ?? "#8a93a6";
+          const color = colorForHazard(a.type);
           return (
             <Circle
               key={a.id}
@@ -361,7 +366,7 @@ export function MapPage({ incidents }: { incidents: IncidentResponse[] }) {
           <Circle
             center={[pendingLatLng.lat, pendingLatLng.lng]}
             radius={hazardRadiusKm * 1000}
-            pathOptions={{ color: hazardColor[hazardType], fillColor: hazardColor[hazardType], fillOpacity: 0.2, weight: 2, dashArray: "6 4" }}
+            pathOptions={{ color: colorForHazard(hazardType), fillColor: colorForHazard(hazardType), fillOpacity: 0.2, weight: 2, dashArray: "6 4" }}
           />
         )}
 

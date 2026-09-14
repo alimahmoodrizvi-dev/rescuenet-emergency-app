@@ -5,14 +5,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import Base, SessionLocal, engine
-from app.models import Hospital, Resource, ResourceStatus, ResourceType, Shelter
-from app.routers import ai, alerts, auth, dashboard, incidents, places, resources, safety, sync
+from app.models import AlertType, HazardType, Hospital, Resource, ResourceStatus, ResourceType, Shelter
+from app.routers import ai, alerts, auth, dashboard, hazard_types, incidents, places, resources, safety, sync
 from app.websocket import manager
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     _seed_demo_reference_data()
+    _seed_default_hazard_types()
     yield
 
 
@@ -35,7 +37,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 app.include_router(auth.router)
 app.include_router(incidents.router)
 app.include_router(safety.router)
@@ -43,6 +44,7 @@ app.include_router(resources.router)
 app.include_router(places.router)
 app.include_router(ai.router)
 app.include_router(alerts.router)
+app.include_router(hazard_types.router)
 app.include_router(sync.router)
 app.include_router(dashboard.router)
 
@@ -70,6 +72,29 @@ async def ws_incidents(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+
+def _seed_default_hazard_types() -> None:
+    """Seeds the original built-in hazard categories as ordinary, editable/deletable
+    HazardType rows — they're just the starting catalog, not special-cased in code."""
+    db = SessionLocal()
+    try:
+        if db.query(HazardType).count() > 0:
+            return  # already seeded (or an operator already customized the catalog)
+
+        defaults = [
+            (AlertType.FIRE_WARNING.value, "#d8261c"),
+            (AlertType.FLOOD_WARNING.value, "#1c7fd6"),
+            (AlertType.EARTHQUAKE_WARNING.value, "#8a5a2b"),
+            (AlertType.EVACUATION_ORDER.value, "#8a2be2"),
+            (AlertType.ROAD_CLOSURE.value, "#5f5e5a"),
+            (AlertType.SHELTER_OPENING.value, "#2fa84f"),
+            (AlertType.MISSING_PERSON.value, "#d4537e"),
+        ]
+        db.add_all([HazardType(name=name, color=color) for name, color in defaults])
+        db.commit()
+    finally:
+        db.close()
 
 
 def _seed_demo_reference_data() -> None:

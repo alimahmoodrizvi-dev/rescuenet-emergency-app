@@ -1,5 +1,5 @@
 import type {
-  AlertResponse, ClusterResponse, DashboardStatistics, HospitalResponse,
+  AlertResponse, ClusterResponse, DashboardStatistics, HazardTypeResponse, HospitalResponse,
   IncidentResponse, IncidentStatus, ResourceRecommendation, ResourceResponse,
   Severity, ShelterResponse, TokenResponse,
 } from "./types";
@@ -121,6 +121,23 @@ export const api = {
     request<ClusterResponse>(`/api/ai/cluster?radius_km=${radiusKm}`, { method: "POST" }),
 
   listAlerts: () => request<AlertResponse[]>("/api/alerts"),
+
+  listHazardTypes: () => request<HazardTypeResponse[]>("/api/hazard-types"),
+
+  createHazardType: (name: string, color: string) =>
+    request<HazardTypeResponse>("/api/hazard-types", {
+      method: "POST",
+      body: JSON.stringify({ name, color }),
+    }),
+
+  updateHazardType: (id: string, fields: Partial<{ name: string; color: string }>) =>
+    request<HazardTypeResponse>(`/api/hazard-types/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(fields),
+    }),
+
+  deleteHazardType: (id: string) =>
+    request<void>(`/api/hazard-types/${id}`, { method: "DELETE" }),
 
   createAlert: (
     type: string,

@@ -10,11 +10,18 @@ export type Severity = "CRITICAL" | "HIGH" | "MODERATE" | "RESOLVED";
 export type IncidentStatus = "OPEN" | "ACKNOWLEDGED" | "RESOURCE_ASSIGNED" | "RESOLVED" | "CLOSED";
 export type ResourceType = "AMBULANCE" | "RESCUE_TEAM" | "FIRE_TRUCK" | "BOAT" | "MEDICAL_TEAM" | "SHELTER" | "VOLUNTEER";
 export type ResourceStatus = "AVAILABLE" | "BUSY" | "UNAVAILABLE";
-export type AlertType =
-  | "FLOOD_WARNING" | "EARTHQUAKE_WARNING" | "FIRE_WARNING" | "EVACUATION_ORDER"
-  | "ROAD_CLOSURE" | "SHELTER_OPENING" | "MISSING_PERSON";
+// AlertType used to be a fixed set of literals; it's now operator-managed (see HazardTypeResponse
+// below), so any string the catalog contains is valid — kept as an alias for readability.
+export type AlertType = string;
 export type AlertSeverity = "CRITICAL" | "WARNING" | "INFORMATION";
 export type UserRole = "CITIZEN" | "VOLUNTEER" | "RESCUE_OPERATOR" | "COMMAND_CENTER_ADMIN";
+
+export interface HazardTypeResponse {
+  id: string;
+  name: string;
+  color: string;
+  created_at: string;
+}
 
 export interface IncidentResponse {
   id: string;

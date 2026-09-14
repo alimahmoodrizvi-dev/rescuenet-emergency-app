@@ -5,7 +5,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models import (
-    AlertSeverity, AlertType, IncidentStatus, IncidentType, InjuryLevel, ResourceStatus,
+    AlertSeverity, IncidentStatus, IncidentType, InjuryLevel, ResourceStatus,
     ResourceType, SafetyStatus, Severity, UserRole,
 )
 
@@ -191,7 +191,7 @@ class AIAnalyzeIncidentResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class AlertCreateRequest(BaseModel):
-    type: AlertType
+    type: str
     severity: AlertSeverity
     message: str
     is_demo: bool = True
@@ -205,13 +205,34 @@ class AlertCreateRequest(BaseModel):
 
 class AlertResponse(ORMBase):
     id: str
-    type: AlertType
+    type: str
     severity: AlertSeverity
     message: str
     is_demo: bool
     area_geojson: Optional[str]
     created_at: datetime
     expires_at: Optional[datetime]
+
+
+# ---------------------------------------------------------------------------
+# Hazard types (user-manageable catalog for the affected-area / alert "type" field)
+# ---------------------------------------------------------------------------
+
+class HazardTypeResponse(ORMBase):
+    id: str
+    name: str
+    color: str
+    created_at: datetime
+
+
+class HazardTypeCreateRequest(BaseModel):
+    name: str
+    color: str = "#8a93a6"
+
+
+class HazardTypeUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------

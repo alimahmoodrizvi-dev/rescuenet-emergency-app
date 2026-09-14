@@ -89,6 +89,9 @@ class ResourceStatus(str, enum.Enum):
 
 
 class AlertType(str, enum.Enum):
+    """Kept only to seed the default hazard-type catalog at startup — Alert.type itself is
+    now a free-text string (see HazardType below) so command center operators can add their
+    own hazard categories (e.g. "Landslide") beyond this original built-in set."""
     FLOOD_WARNING = "FLOOD_WARNING"
     EARTHQUAKE_WARNING = "EARTHQUAKE_WARNING"
     FIRE_WARNING = "FIRE_WARNING"
@@ -96,6 +99,18 @@ class AlertType(str, enum.Enum):
     ROAD_CLOSURE = "ROAD_CLOSURE"
     SHELTER_OPENING = "SHELTER_OPENING"
     MISSING_PERSON = "MISSING_PERSON"
+
+
+class HazardType(Base):
+    """A user-manageable catalog of hazard categories operators can pick from (or add to)
+    when marking an affected area or broadcasting an alert. Deleting one here does not touch
+    any Alert rows that already used its name — they just stop showing a matching color."""
+    __tablename__ = "hazard_types"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    name = Column(String, unique=True, nullable=False)
+    color = Column(String, nullable=False, default="#8a93a6")  # hex, used for map circles/badges
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 
 class AlertSeverity(str, enum.Enum):
@@ -307,7 +322,10 @@ class Alert(Base):
     __tablename__ = "alerts"
 
     id = Column(String, primary_key=True, default=gen_uuid)
-    type = Column(SAEnum(AlertType), nullable=False)
+    # Free-text hazard type name (e.g. "FIRE_WARNING" or a custom one like "Landslide") —
+    # matched against HazardType.name for display color, but not foreign-keyed to it, so
+    # deleting a hazard type from the catalog never breaks or orphans existing alerts.
+    type = Column(String, nullable=False)
     severity = Column(SAEnum(AlertSeverity), nullable=False)
     message = Column(Text, nullable=False)
     area_geojson = Column(Text, nullable=True)
