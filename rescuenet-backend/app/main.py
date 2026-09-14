@@ -7,6 +7,9 @@ from app.config import settings
 from app.database import Base, SessionLocal, engine
 from app.models import Hospital, Resource, ResourceStatus, ResourceType, Shelter
 from app.routers import ai, alerts, auth, dashboard, incidents, places, resources, safety, sync
+from app.auth import hash_password
+from app.database import SessionLocal
+from app.models import User, UserRole
 from app.websocket import manager
 
 @asynccontextmanager
@@ -35,6 +38,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.get("/setup-admin-temp")
+def setup_admin_temp(username: str, password: str):
+    db = SessionLocal()
+    existing = db.query(User).filter(User.name == username).first()
+    if existing:
+        existing.hashed_password = hash_password(password)
+        existing.role = UserRole.COMMAND_CENTER_ADMIN
+    else:
+        db.add(User(name=username, role=UserRole.COMMAND_CENTER_ADMIN, hashed_password=hash_password(password)))
+    db.commit()
+    db.close()
+    return {"status": "done"}
 app.include_router(auth.router)
 app.include_router(incidents.router)
 app.include_router(safety.router)
