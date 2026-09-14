@@ -38,7 +38,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.get("/setup-admin-temp")
+@app.get("/setup-admin-temp")
 def setup_admin_temp(username: str, password: str):
     db = SessionLocal()
     existing = db.query(User).filter(User.name == username).first()
