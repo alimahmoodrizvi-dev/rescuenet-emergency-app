@@ -25,6 +25,7 @@ async def create_alert(
     alert = Alert(
         type=req.type, severity=req.severity, message=req.message,
         is_demo=req.is_demo, created_by=current_user.id, expires_at=req.expires_at,
+        area_geojson=req.area_geojson,
     )
     db.add(alert)
     db.commit()

@@ -9,10 +9,30 @@ from app.database import get_db
 from app.models import (
     EmergencyIncident, Resource, ResourceAssignment, ResourceStatus, User, UserRole,
 )
-from app.schemas import ResourceAssignmentResponse, ResourceAssignRequest, ResourceResponse
+from app.schemas import (
+    ResourceAssignmentResponse, ResourceAssignRequest, ResourceCreateRequest, ResourceResponse,
+)
 from app.websocket import manager
 
 router = APIRouter(prefix="/api/resources", tags=["resources"])
+
+
+@router.post("", response_model=ResourceResponse, status_code=status.HTTP_201_CREATED)
+async def create_resource(
+    req: ResourceCreateRequest,
+    current_user: User = Depends(require_roles(UserRole.RESCUE_OPERATOR, UserRole.COMMAND_CENTER_ADMIN)),
+    db: Session = Depends(get_db),
+):
+    resource = Resource(
+        name=req.name, type=req.type, latitude=req.latitude, longitude=req.longitude,
+        capacity=req.capacity, capabilities=req.capabilities,
+    )
+    db.add(resource)
+    db.commit()
+    db.refresh(resource)
+
+    await manager.broadcast("resource_created", ResourceResponse.model_validate(resource).model_dump())
+    return resource
 
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

@@ -112,6 +112,15 @@ class ResourceAssignRequest(BaseModel):
     eta_minutes: Optional[int] = None
 
 
+class ResourceCreateRequest(BaseModel):
+    name: str
+    type: ResourceType
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    capacity: int = 1
+    capabilities: str = ""
+
+
 class ResourceAssignmentResponse(ORMBase):
     id: str
     resource_id: str
@@ -176,6 +185,11 @@ class AlertCreateRequest(BaseModel):
     message: str
     is_demo: bool = True
     expires_at: Optional[datetime] = None
+    # Simple JSON string of {"lat": float, "lng": float, "radius_km": float} describing the
+    # affected area as a circle. Kept as a string (not a nested model) since the existing
+    # `Alert.area_geojson` column is free-text — this is the simplest shape that fits without
+    # a migration, and can be swapped for a real GeoJSON polygon later without a schema change.
+    area_geojson: Optional[str] = None
 
 
 class AlertResponse(ORMBase):
@@ -184,6 +198,7 @@ class AlertResponse(ORMBase):
     severity: AlertSeverity
     message: str
     is_demo: bool
+    area_geojson: Optional[str]
     created_at: datetime
     expires_at: Optional[datetime]
 
