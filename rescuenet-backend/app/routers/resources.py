@@ -11,6 +11,7 @@ from app.models import (
 )
 from app.schemas import (
     ResourceAssignmentResponse, ResourceAssignRequest, ResourceCreateRequest, ResourceResponse,
+    ResourceUpdateRequest,
 )
 from app.websocket import manager
 
@@ -33,6 +34,40 @@ async def create_resource(
 
     await manager.broadcast("resource_created", ResourceResponse.model_validate(resource).model_dump())
     return resource
+
+
+@router.patch("/{resource_id}", response_model=ResourceResponse)
+async def update_resource(
+    resource_id: str,
+    req: ResourceUpdateRequest,
+    current_user: User = Depends(require_roles(UserRole.RESCUE_OPERATOR, UserRole.COMMAND_CENTER_ADMIN)),
+    db: Session = Depends(get_db),
+):
+    resource = db.get(Resource, resource_id)
+    if resource is None:
+        raise HTTPException(status_code=404, detail="Resource not found")
+
+    for field, value in req.model_dump(exclude_unset=True).items():
+        setattr(resource, field, value)
+    db.commit()
+    db.refresh(resource)
+
+    await manager.broadcast("resource_updated", ResourceResponse.model_validate(resource).model_dump())
+    return resource
+
+
+@router.delete("/{resource_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_resource(
+    resource_id: str,
+    current_user: User = Depends(require_roles(UserRole.RESCUE_OPERATOR, UserRole.COMMAND_CENTER_ADMIN)),
+    db: Session = Depends(get_db),
+):
+    resource = db.get(Resource, resource_id)
+    if resource is None:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    db.delete(resource)
+    db.commit()
+    await manager.broadcast("resource_deleted", {"id": resource_id})
 
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

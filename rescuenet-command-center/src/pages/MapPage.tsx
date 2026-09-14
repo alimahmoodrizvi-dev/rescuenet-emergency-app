@@ -63,6 +63,12 @@ function parseArea(areaGeojson: string | null): AffectedAreaCircle | null {
   return null;
 }
 
+function combineToIso(date: string, time: string): string | null {
+  if (!date) return null;
+  const iso = new Date(`${date}T${time || "00:00"}:00`);
+  return Number.isNaN(iso.getTime()) ? null : iso.toISOString();
+}
+
 function ClickCapture({ active, onClick }: { active: boolean; onClick: (lat: number, lng: number) => void }) {
   useMapEvents({
     click(e) {
@@ -94,6 +100,8 @@ export function MapPage({ incidents }: { incidents: IncidentResponse[] }) {
   const [hazardRadiusKm, setHazardRadiusKm] = useState(1);
   const [hazardMessage, setHazardMessage] = useState("");
   const [hazardIsDemo, setHazardIsDemo] = useState(true);
+  const [hazardEndDate, setHazardEndDate] = useState("");
+  const [hazardEndTime, setHazardEndTime] = useState("");
 
   function refreshResources() {
     api.listResources().then(setResources).catch(() => {});
@@ -121,6 +129,8 @@ export function MapPage({ incidents }: { incidents: IncidentResponse[] }) {
     setFormError(null);
     setResName("");
     setHazardMessage("");
+    setHazardEndDate("");
+    setHazardEndTime("");
   }
 
   async function submitResource() {
@@ -155,7 +165,8 @@ export function MapPage({ incidents }: { incidents: IncidentResponse[] }) {
     setFormError(null);
     try {
       const area: AffectedAreaCircle = { lat: pendingLatLng.lat, lng: pendingLatLng.lng, radius_km: hazardRadiusKm };
-      await api.createAlert(hazardType, hazardSeverity, hazardMessage.trim(), hazardIsDemo, JSON.stringify(area));
+      const expiresAt = combineToIso(hazardEndDate, hazardEndTime);
+      await api.createAlert(hazardType, hazardSeverity, hazardMessage.trim(), hazardIsDemo, JSON.stringify(area), expiresAt);
       refreshAlerts();
       cancelPending();
       setMode("view");
@@ -165,6 +176,16 @@ export function MapPage({ incidents }: { incidents: IncidentResponse[] }) {
         : "Couldn't save affected area. Try again.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleClearAlert(id: string) {
+    if (!confirm("Clear this affected area? This can't be undone.")) return;
+    try {
+      await api.clearAlert(id);
+      setAlerts((prev) => prev.filter((a) => a.id !== id));
+    } catch {
+      alert("Couldn't clear this area. You may need Rescue Operator or Admin role.");
     }
   }
 
@@ -199,7 +220,7 @@ export function MapPage({ incidents }: { incidents: IncidentResponse[] }) {
         </button>
         {mode !== "view" && (
           <span style={{ fontSize: 12, color: "var(--text-dim)" }}>
-            Click anywhere on the map to place it.
+            Click anywhere on the map to place it. Click an existing marker to edit or clear it.
           </span>
         )}
       </div>
@@ -279,6 +300,23 @@ export function MapPage({ incidents }: { incidents: IncidentResponse[] }) {
             placeholder="Rising water level near riverside colony"
             style={{ width: "100%", marginBottom: 10 }}
           />
+          <label style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
+            Auto-clear on (optional) — leave blank to clear it manually instead
+          </label>
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <input
+              type="date"
+              value={hazardEndDate}
+              onChange={(e) => setHazardEndDate(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <input
+              type="time"
+              value={hazardEndTime}
+              onChange={(e) => setHazardEndTime(e.target.value)}
+              style={{ flex: 1 }}
+            />
+          </div>
           <label style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
             <input type="checkbox" checked={hazardIsDemo} onChange={(e) => setHazardIsDemo(e.target.checked)} />
             Mark as demo/test
@@ -313,11 +351,7 @@ export function MapPage({ incidents }: { incidents: IncidentResponse[] }) {
               pathOptions={{ color, fillColor: color, fillOpacity: 0.15, weight: 2 }}
             >
               <Popup>
-                <strong>{a.type.replace("_", " ")}</strong> — {a.severity}
-                <br />
-                {a.message}
-                <br />
-                <span style={{ color: "#666" }}>{area.radius_km} km radius</span>
+                <AlertPopupContent alert={a} radiusKm={area.radius_km} onClear={handleClearAlert} />
               </Popup>
             </Circle>
           );
@@ -361,10 +395,8 @@ export function MapPage({ incidents }: { incidents: IncidentResponse[] }) {
           .filter((r) => r.latitude != null && r.longitude != null)
           .map((r) => (
             <Marker key={r.id} position={[r.latitude as number, r.longitude as number]} icon={coloredIcon("#0fa3a3")}>
-              <Popup>
-                <strong>{r.name}</strong>
-                <br />
-                {r.type.replace("_", " ")} · {r.status}
+              <Popup minWidth={220}>
+                <ResourceEditForm resource={r} onSaved={refreshResources} onDeleted={refreshResources} />
               </Popup>
             </Marker>
           ))}
@@ -393,6 +425,115 @@ export function MapPage({ incidents }: { incidents: IncidentResponse[] }) {
   );
 }
 
+function AlertPopupContent({
+  alert, radiusKm, onClear,
+}: { alert: AlertResponse; radiusKm: number; onClear: (id: string) => void }) {
+  return (
+    <div style={{ minWidth: 180 }}>
+      <strong>{alert.type.replace("_", " ")}</strong> — {alert.severity}
+      <br />
+      {alert.message}
+      <br />
+      <span style={{ color: "#666" }}>{radiusKm} km radius</span>
+      <br />
+      {alert.expires_at && (
+        <span style={{ color: "#666" }}>
+          Auto-clears {new Date(alert.expires_at).toLocaleString()}
+        </span>
+      )}
+      <div style={{ marginTop: 8 }}>
+        <button className="btn" style={{ fontSize: 12 }} onClick={() => onClear(alert.id)}>
+          Clear (emergency over)
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ResourceEditForm({
+  resource, onSaved, onDeleted,
+}: { resource: ResourceResponse; onSaved: () => void; onDeleted: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(resource.name);
+  const [type, setType] = useState<ResourceType>(resource.type);
+  const [status, setStatus] = useState(resource.status);
+  const [capacity, setCapacity] = useState(resource.capacity);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!editing) {
+    return (
+      <div style={{ minWidth: 180 }}>
+        <strong>{resource.name}</strong>
+        <br />
+        {resource.type.replace("_", " ")} · {resource.status}
+        <br />
+        Capacity: {resource.capacity}
+        <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
+          <button className="btn" style={{ fontSize: 12 }} onClick={() => setEditing(true)}>Edit</button>
+        </div>
+      </div>
+    );
+  }
+
+  async function save() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.updateResource(resource.id, { name: name.trim(), type, status, capacity });
+      onSaved();
+      setEditing(false);
+    } catch {
+      setError("Couldn't save. Check your role/permissions.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (!confirm(`Remove "${resource.name}"? This can't be undone.`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.deleteResource(resource.id);
+      onDeleted();
+    } catch {
+      setError("Couldn't remove. Check your role/permissions.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ minWidth: 200 }}>
+      <input value={name} onChange={(e) => setName(e.target.value)} style={{ width: "100%", marginBottom: 6 }} />
+      <select value={type} onChange={(e) => setType(e.target.value as ResourceType)} style={{ width: "100%", marginBottom: 6 }}>
+        {RESOURCE_TYPES.map((t) => (
+          <option key={t} value={t}>{t.replace("_", " ")}</option>
+        ))}
+      </select>
+      <select value={status} onChange={(e) => setStatus(e.target.value as ResourceResponse["status"])} style={{ width: "100%", marginBottom: 6 }}>
+        <option value="AVAILABLE">AVAILABLE</option>
+        <option value="BUSY">BUSY</option>
+        <option value="UNAVAILABLE">UNAVAILABLE</option>
+      </select>
+      <input
+        type="number"
+        min={1}
+        value={capacity}
+        onChange={(e) => setCapacity(Math.max(1, Number(e.target.value)))}
+        style={{ width: "100%", marginBottom: 6 }}
+      />
+      {error && <p className="error-text" style={{ fontSize: 12 }}>{error}</p>}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <button className="btn btn-primary" style={{ fontSize: 12 }} disabled={busy} onClick={save}>Save</button>
+        <button className="btn" style={{ fontSize: 12 }} onClick={() => setEditing(false)}>Cancel</button>
+        <button className="btn" style={{ fontSize: 12, color: "#d8261c" }} disabled={busy} onClick={remove}>Delete</button>
+      </div>
+    </div>
+  );
+}
+
 function Legend() {
   const items: { label: string; color: string; severity?: Severity }[] = [
     { label: "Critical", color: severityColor.CRITICAL },
@@ -410,7 +551,7 @@ function Legend() {
       ))}
       <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#0fa3a3", display: "inline-block" }} />
-        Resource
+        Resource (click to edit)
       </span>
       <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#0b1f3a", display: "inline-block" }} />
@@ -422,7 +563,7 @@ function Legend() {
       </span>
       <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#d8261c", display: "inline-block" }} />
-        Affected area (color = hazard type)
+        Affected area (click to clear)
       </span>
     </div>
   );

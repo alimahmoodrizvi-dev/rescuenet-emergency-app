@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.auth import require_roles
@@ -44,3 +44,19 @@ def list_alerts(db: Session = Depends(get_db)):
         .order_by(Alert.created_at.desc())
         .all()
     )
+
+
+@router.delete("/{alert_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_alert(
+    alert_id: str,
+    current_user: User = Depends(require_roles(UserRole.RESCUE_OPERATOR, UserRole.COMMAND_CENTER_ADMIN)),
+    db: Session = Depends(get_db),
+):
+    """Manually clear an alert/affected area once the emergency it describes is over —
+    separate from `expires_at`, which is an optional scheduled auto-expiry set at creation."""
+    alert = db.get(Alert, alert_id)
+    if alert is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    db.delete(alert)
+    db.commit()
+    await manager.broadcast("alert_cleared", {"id": alert_id})

@@ -121,6 +121,17 @@ class ResourceCreateRequest(BaseModel):
     capabilities: str = ""
 
 
+class ResourceUpdateRequest(BaseModel):
+    """All fields optional — only the ones the caller sends get changed."""
+    name: Optional[str] = None
+    type: Optional[ResourceType] = None
+    status: Optional[ResourceStatus] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    capacity: Optional[int] = None
+    capabilities: Optional[str] = None
+
+
 class ResourceAssignmentResponse(ORMBase):
     id: str
     resource_id: str

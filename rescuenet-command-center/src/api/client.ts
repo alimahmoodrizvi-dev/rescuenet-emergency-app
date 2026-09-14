@@ -93,6 +93,18 @@ export const api = {
       body: JSON.stringify({ name, type, latitude, longitude, capacity, capabilities }),
     }),
 
+  updateResource: (id: string, fields: Partial<{
+    name: string; type: string; status: string; latitude: number | null; longitude: number | null;
+    capacity: number; capabilities: string;
+  }>) =>
+    request<ResourceResponse>(`/api/resources/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(fields),
+    }),
+
+  deleteResource: (id: string) =>
+    request<void>(`/api/resources/${id}`, { method: "DELETE" }),
+
   assignResource: (resourceId: string, incidentId: string, etaMinutes?: number) =>
     request(`/api/resources/${resourceId}/assign`, {
       method: "POST",
@@ -116,11 +128,17 @@ export const api = {
     message: string,
     isDemo: boolean,
     areaGeojson?: string | null,
+    expiresAt?: string | null,
   ) =>
     request<AlertResponse>("/api/alerts", {
       method: "POST",
-      body: JSON.stringify({ type, severity, message, is_demo: isDemo, area_geojson: areaGeojson ?? null }),
+      body: JSON.stringify({
+        type, severity, message, is_demo: isDemo,
+        area_geojson: areaGeojson ?? null, expires_at: expiresAt ?? null,
+      }),
     }),
+
+  clearAlert: (id: string) => request<void>(`/api/alerts/${id}`, { method: "DELETE" }),
 
   dashboardStatistics: () => request<DashboardStatistics>("/api/dashboard/statistics"),
 };
