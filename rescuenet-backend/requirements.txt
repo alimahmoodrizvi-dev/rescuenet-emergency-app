@@ -10,4 +10,4 @@ websockets==17.1
 httpx==0.28.1
 
 # Uncomment for a real PostgreSQL deployment (see docker-compose.yml):
-# psycopg2-binary==2.9.9
+psycopg2-binary==2.9.9
