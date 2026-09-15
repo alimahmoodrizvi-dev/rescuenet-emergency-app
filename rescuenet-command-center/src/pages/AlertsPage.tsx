@@ -237,11 +237,11 @@ function HazardTypeManager({
       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
         {hazardTypes.map((t) =>
           editingId === t.id ? (
-            <div key={t.id} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <input type="color" value={editColor} onChange={(e) => setEditColor(e.target.value)} style={{ width: 32, height: 28, padding: 0 }} />
-              <input value={editName} onChange={(e) => setEditName(e.target.value)} style={{ flex: 1 }} />
-              <button className="btn btn-primary" style={{ fontSize: 12 }} disabled={busy} onClick={() => saveEdit(t.id)}>Save</button>
-              <button className="btn" style={{ fontSize: 12 }} onClick={() => setEditingId(null)}>Cancel</button>
+            <div key={t.id} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+              <input type="color" value={editColor} onChange={(e) => setEditColor(e.target.value)} style={{ width: 32, height: 28, padding: 0, flexShrink: 0 }} />
+              <input value={editName} onChange={(e) => setEditName(e.target.value)} style={{ flex: "1 1 100px", minWidth: 0 }} />
+              <button className="btn btn-primary" style={{ fontSize: 12, flexShrink: 0 }} disabled={busy} onClick={() => saveEdit(t.id)}>Save</button>
+              <button className="btn" style={{ fontSize: 12, flexShrink: 0 }} onClick={() => setEditingId(null)}>Cancel</button>
             </div>
           ) : (
             <div key={t.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -257,15 +257,15 @@ function HazardTypeManager({
         )}
       </div>
 
-      <form onSubmit={addType} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        <input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} style={{ width: 32, height: 32, padding: 0 }} />
+      <form onSubmit={addType} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+        <input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} style={{ width: 32, height: 32, padding: 0, flexShrink: 0 }} />
         <input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           placeholder="e.g. Landslide"
-          style={{ flex: 1 }}
+          style={{ flex: "1 1 140px", minWidth: 0 }}
         />
-        <button type="submit" className="btn btn-primary" disabled={busy}>Add</button>
+        <button type="submit" className="btn btn-primary" disabled={busy} style={{ flexShrink: 0 }}>Add</button>
       </form>
       {error && <p className="error-text">{error}</p>}
     </div>
