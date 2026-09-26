@@ -7,7 +7,6 @@ from app.config import settings
 from app.database import Base, SessionLocal, engine
 from app.models import AlertType, HazardType, Hospital, Resource, ResourceStatus, ResourceType, Shelter
 from app.routers import ai, alerts, auth, dashboard, hazard_types, incidents, places, resources, safety, sync
-from sqlalchemy import text
 from app.websocket import manager
 
 
@@ -37,12 +36,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-@app.get("/fix-alert-type-column-temp")
-def fix_alert_type_column_temp():
-    with engine.begin() as conn:
-        conn.execute(text("ALTER TABLE alerts ALTER COLUMN type TYPE VARCHAR USING type::text"))
-        conn.execute(text("DROP TYPE IF EXISTS alerttype"))
-    return {"status": "migrated"}
 
 app.include_router(auth.router)
 app.include_router(incidents.router)
