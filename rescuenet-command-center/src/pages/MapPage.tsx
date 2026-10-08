@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { CircleMarker, Circle, MapContainer, Marker, Popup, TileLayer, useMapEvents } from "react-leaflet";
+import { CircleMarker, Circle, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import { useLocation } from "react-router-dom";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { api, ApiError } from "../api/client";
+import { pulseIcon, UNRATED_PULSE_COLOR } from "../components/pulseIcon";
 import type {
   AffectedAreaCircle, AlertResponse, AlertSeverity, AlertType, HazardTypeResponse,
   HospitalResponse, IncidentResponse, ResourceResponse, ResourceType, ShelterResponse, Severity,
@@ -55,6 +57,17 @@ function combineToIso(date: string, time: string): string | null {
   return Number.isNaN(iso.getTime()) ? null : iso.toISOString();
 }
 
+// Flies the map to an incident when the user arrives from the new-request pop-up
+// ("View on live map"). Runs once per navigation, not on every incident update.
+function FocusOn({ target, navKey }: { target: [number, number] | null; navKey: string }) {
+  const map = useMap();
+  useEffect(() => {
+    if (target) map.flyTo(target, 16, { duration: 1 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navKey]);
+  return null;
+}
+
 function ClickCapture({ active, onClick }: { active: boolean; onClick: (lat: number, lng: number) => void }) {
   useMapEvents({
     click(e) {
@@ -65,13 +78,25 @@ function ClickCapture({ active, onClick }: { active: boolean; onClick: (lat: num
 }
 
 export function MapPage({
-  incidents, onIncidentDeleted,
-}: { incidents: IncidentResponse[]; onIncidentDeleted: (id: string) => void }) {
+  incidents, onIncidentDeleted, onIncidentUpdated,
+}: {
+  incidents: IncidentResponse[];
+  onIncidentDeleted: (id: string) => void;
+  onIncidentUpdated: (incident: IncidentResponse) => void;
+}) {
   const [resources, setResources] = useState<ResourceResponse[]>([]);
   const [shelters, setShelters] = useState<ShelterResponse[]>([]);
   const [hospitals, setHospitals] = useState<HospitalResponse[]>([]);
   const [alerts, setAlerts] = useState<AlertResponse[]>([]);
   const [hazardTypes, setHazardTypes] = useState<HazardTypeResponse[]>([]);
+
+  const location = useLocation();
+  const focusId = (location.state as { focusIncidentId?: string } | null)?.focusIncidentId;
+  const focusIncident = focusId ? incidents.find((i) => i.id === focusId) : undefined;
+  const focusTarget: [number, number] | null =
+    focusIncident && focusIncident.latitude != null && focusIncident.longitude != null
+      ? [focusIncident.latitude, focusIncident.longitude]
+      : null;
 
   const [mode, setMode] = useState<Mode>("view");
   const [pendingLatLng, setPendingLatLng] = useState<{ lat: number; lng: number } | null>(null);
@@ -182,6 +207,15 @@ export function MapPage({
         : "Couldn't save affected area. Try again.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleAcknowledgeIncident(incident: IncidentResponse) {
+    try {
+      const updated = await api.updateIncident(incident.id, "Acknowledged from the live map", "ACKNOWLEDGED");
+      onIncidentUpdated(updated);
+    } catch {
+      alert("Couldn't acknowledge this incident. You need Rescue Operator or Admin role.");
     }
   }
 
@@ -354,6 +388,7 @@ export function MapPage({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
+        <FocusOn target={focusTarget} navKey={location.key} />
         <ClickCapture active={mode !== "view"} onClick={handleMapClick} />
 
         {alerts.map((a) => {
@@ -386,24 +421,21 @@ export function MapPage({
           <Marker position={[pendingLatLng.lat, pendingLatLng.lng]} icon={coloredIcon("#0fa3a3")} />
         )}
 
-        {located.map((i) => (
-          <CircleMarker
-            key={i.id}
-            center={[i.latitude as number, i.longitude as number]}
-            radius={9}
-            pathOptions={{
-              color: "white",
-              weight: 2,
-              fillColor: severityColor[i.severity ?? "MODERATE"] ?? "#8a93a6",
-              fillOpacity: 0.9,
-            }}
-          >
+        {located.map((i) => {
+          const popup = (
             <Popup>
               <strong>{i.type.replace("_", " ")}</strong> — {i.severity ?? "unanalyzed"}
               <br />
               {i.people_count} people · {i.status.replace("_", " ")}
               <br />
               <span style={{ color: "#666" }}>{i.description}</span>
+              {i.status === "OPEN" && (
+                <div style={{ marginTop: 8 }}>
+                  <button className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => handleAcknowledgeIncident(i)}>
+                    Acknowledge (stop blinking)
+                  </button>
+                </div>
+              )}
               {i.status === "CLOSED" && (
                 <div style={{ marginTop: 8 }}>
                   <button className="btn" style={{ fontSize: 12, color: "#d8261c" }} onClick={() => handleDeleteIncident(i)}>
@@ -412,8 +444,34 @@ export function MapPage({
                 </div>
               )}
             </Popup>
-          </CircleMarker>
-        ))}
+          );
+
+          // OPEN = nobody has acknowledged it yet, so it blinks until someone does.
+          if (i.status === "OPEN") {
+            const color = i.severity ? severityColor[i.severity] ?? UNRATED_PULSE_COLOR : UNRATED_PULSE_COLOR;
+            return (
+              <Marker key={i.id} position={[i.latitude as number, i.longitude as number]} icon={pulseIcon(color)}>
+                {popup}
+              </Marker>
+            );
+          }
+
+          return (
+            <CircleMarker
+              key={i.id}
+              center={[i.latitude as number, i.longitude as number]}
+              radius={9}
+              pathOptions={{
+                color: "white",
+                weight: 2,
+                fillColor: severityColor[i.severity ?? "MODERATE"] ?? "#8a93a6",
+                fillOpacity: 0.9,
+              }}
+            >
+              {popup}
+            </CircleMarker>
+          );
+        })}
 
         {resources
           .filter((r) => r.latitude != null && r.longitude != null)
@@ -573,6 +631,10 @@ function Legend() {
           {it.label} incident
         </span>
       ))}
+      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#e1341e", display: "inline-block", opacity: 0.5 }} />
+        Blinking = awaiting acknowledgement
+      </span>
       <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#0fa3a3", display: "inline-block" }} />
         Resource (click to edit)

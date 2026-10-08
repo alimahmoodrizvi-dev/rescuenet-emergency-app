@@ -181,3 +181,60 @@ select, input, textarea {
 .login-card label { display: block; font-size: 12px; margin-bottom: 6px; color: var(--text-dim); }
 .login-card input { width: 100%; margin-bottom: 14px; }
 .error-text { color: var(--critical); font-size: 12px; margin-top: 8px; }
+
+/* ---- Blinking marker for incidents awaiting acknowledgement ---- */
+.pulse-marker { position: relative; }
+.pulse-marker .pulse-dot,
+.pulse-marker .pulse-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border-radius: 50%;
+  background: var(--c);
+}
+.pulse-marker .pulse-dot {
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+  animation: rn-blink 1s steps(2, start) infinite;
+}
+.pulse-marker .pulse-ring {
+  opacity: 0.6;
+  animation: rn-pulse 1.4s ease-out infinite;
+}
+@keyframes rn-blink { 50% { opacity: 0.25; } }
+@keyframes rn-pulse {
+  0% { transform: scale(1); opacity: 0.7; }
+  100% { transform: scale(3.4); opacity: 0; }
+}
+/* Respect users who ask for reduced motion: keep a static, high-contrast ring instead. */
+@media (prefers-reduced-motion: reduce) {
+  .pulse-marker .pulse-dot { animation: none; }
+  .pulse-marker .pulse-ring { animation: none; opacity: 0.35; transform: scale(2.2); }
+}
+
+/* ---- New help request pop-up ---- */
+.help-alert-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 31, 58, 0.55);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.help-alert {
+  width: 100%;
+  max-width: 480px;
+  max-height: 100%;
+  overflow-y: auto;
+  background: white;
+  border-radius: var(--radius);
+  border-top: 6px solid var(--critical);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  padding: 18px 20px 20px;
+}
+.help-alert .leaflet-container { height: 200px; margin: 10px 0 12px; }

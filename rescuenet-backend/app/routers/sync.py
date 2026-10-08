@@ -4,7 +4,9 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.database import get_db
 from app.models import EmergencyIncident, SafetyStatusUpdate, User
-from app.schemas import IncidentCreateRequest, SafetyStatusRequest, SyncBatchRequest, SyncBatchResult
+from app.schemas import (
+    IncidentCreateRequest, IncidentResponse, SafetyStatusRequest, SyncBatchRequest, SyncBatchResult,
+)
 from app.websocket import manager
 
 router = APIRouter(prefix="/api/sync", tags=["sync"])
@@ -23,6 +25,7 @@ async def sync_batch(
     incident item is deduped by event_uuid exactly like POST /api/incidents; this endpoint is
     just a bulk-friendly variant of the same logic for catching up after a period offline."""
     accepted = duplicates = rejected = 0
+    created: list[EmergencyIncident] = []
 
     for item in req.items:
         try:
@@ -49,8 +52,8 @@ async def sync_batch(
                 )
                 db.add(incident)
                 db.flush()
+                created.append(incident)
                 accepted += 1
-                await manager.broadcast("incident_created", {"event_uuid": incident.event_uuid, "via": "sync_batch"})
 
             elif item.entity_type == "safety_status":
                 status_req = SafetyStatusRequest.model_validate(item.payload)
@@ -65,4 +68,12 @@ async def sync_batch(
             rejected += 1
 
     db.commit()
+
+    # Broadcast the *full* incident only after the commit succeeded, so the Command Center
+    # can show relayed (offline-mesh) help requests live — with location and details — exactly
+    # like direct ones, instead of receiving a bare ID for a row that might not be saved yet.
+    for incident in created:
+        db.refresh(incident)
+        await manager.broadcast("incident_created", IncidentResponse.model_validate(incident).model_dump())
+
     return SyncBatchResult(accepted=accepted, duplicates=duplicates, rejected=rejected)

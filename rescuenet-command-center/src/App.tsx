@@ -4,6 +4,7 @@ import { api } from "./api/client";
 import { useAuth } from "./hooks/useAuth";
 import { useIncidentSocket } from "./hooks/useIncidentSocket";
 import { Sidebar } from "./components/Sidebar";
+import { HelpAlertModal } from "./components/HelpAlertModal";
 import { LoginPage } from "./pages/LoginPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { MapPage } from "./pages/MapPage";
@@ -26,6 +27,8 @@ export default function App() {
 function AuthenticatedApp({ role, onLogout }: { role: string | null; onLogout: () => void }) {
   const [incidents, setIncidents] = useState<IncidentResponse[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // New help requests that arrived live and haven't been dismissed/acknowledged yet.
+  const [alertQueue, setAlertQueue] = useState<IncidentResponse[]>([]);
 
   // Initial snapshot via REST, then live deltas via WebSocket (Part 10/23) — the socket
   // never replays history, so the REST call is not optional.
@@ -41,12 +44,14 @@ function AuthenticatedApp({ role, onLogout }: { role: string | null; onLogout: (
       const incident = msg.data as IncidentResponse;
       if (!incident.id) return; // sync_batch broadcasts a lighter payload without a fetched row
       setIncidents((prev) => (prev.some((i) => i.id === incident.id) ? prev : [incident, ...prev]));
+      setAlertQueue((prev) => (prev.some((i) => i.id === incident.id) ? prev : [...prev, incident]));
     } else if (msg.event === "incident_updated") {
       const incident = msg.data as IncidentResponse;
       setIncidents((prev) => prev.map((i) => (i.id === incident.id ? incident : i)));
     } else if (msg.event === "incident_deleted") {
       const { id } = msg.data as { id: string };
       setIncidents((prev) => prev.filter((i) => i.id !== id));
+      setAlertQueue((prev) => prev.filter((i) => i.id !== id));
     }
   }, []);
 
@@ -58,17 +63,23 @@ function AuthenticatedApp({ role, onLogout }: { role: string | null; onLogout: (
 
   function handleIncidentDeleted(id: string) {
     setIncidents((prev) => prev.filter((i) => i.id !== id));
+    setAlertQueue((prev) => prev.filter((i) => i.id !== id));
+  }
+
+  function dismissAlert(id: string) {
+    setAlertQueue((prev) => prev.filter((i) => i.id !== id));
   }
 
   return (
     <HashRouter>
       <div className="app-shell">
+        <HelpAlertModal queue={alertQueue} onDismiss={dismissAlert} onAcknowledged={handleIncidentUpdated} />
         <Sidebar connState={connState} role={role} onLogout={onLogout} />
         <main className="main-content">
           {loadError && <p className="error-text">{loadError}</p>}
           <Routes>
             <Route path="/" element={<DashboardPage incidents={incidents} />} />
-            <Route path="/map" element={<MapPage incidents={incidents} onIncidentDeleted={handleIncidentDeleted} />} />
+            <Route path="/map" element={<MapPage incidents={incidents} onIncidentDeleted={handleIncidentDeleted} onIncidentUpdated={handleIncidentUpdated} />} />
             <Route
               path="/incidents"
               element={<IncidentsPage incidents={incidents} onIncidentUpdated={handleIncidentUpdated} onIncidentDeleted={handleIncidentDeleted} />}
