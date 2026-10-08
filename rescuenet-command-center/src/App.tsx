@@ -44,6 +44,9 @@ function AuthenticatedApp({ role, onLogout }: { role: string | null; onLogout: (
     } else if (msg.event === "incident_updated") {
       const incident = msg.data as IncidentResponse;
       setIncidents((prev) => prev.map((i) => (i.id === incident.id ? incident : i)));
+    } else if (msg.event === "incident_deleted") {
+      const { id } = msg.data as { id: string };
+      setIncidents((prev) => prev.filter((i) => i.id !== id));
     }
   }, []);
 
@@ -51,6 +54,10 @@ function AuthenticatedApp({ role, onLogout }: { role: string | null; onLogout: (
 
   function handleIncidentUpdated(updated: IncidentResponse) {
     setIncidents((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+  }
+
+  function handleIncidentDeleted(id: string) {
+    setIncidents((prev) => prev.filter((i) => i.id !== id));
   }
 
   return (
@@ -61,10 +68,10 @@ function AuthenticatedApp({ role, onLogout }: { role: string | null; onLogout: (
           {loadError && <p className="error-text">{loadError}</p>}
           <Routes>
             <Route path="/" element={<DashboardPage incidents={incidents} />} />
-            <Route path="/map" element={<MapPage incidents={incidents} />} />
+            <Route path="/map" element={<MapPage incidents={incidents} onIncidentDeleted={handleIncidentDeleted} />} />
             <Route
               path="/incidents"
-              element={<IncidentsPage incidents={incidents} onIncidentUpdated={handleIncidentUpdated} />}
+              element={<IncidentsPage incidents={incidents} onIncidentUpdated={handleIncidentUpdated} onIncidentDeleted={handleIncidentDeleted} />}
             />
             <Route path="/clusters" element={<ClustersPage />} />
             <Route path="/resources" element={<ResourcesPage />} />

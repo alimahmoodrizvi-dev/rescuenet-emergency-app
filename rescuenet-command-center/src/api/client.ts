@@ -78,6 +78,8 @@ export const api = {
       body: JSON.stringify({ update_text: updateText, status_change: statusChange }),
     }),
 
+  deleteIncident: (id: string) => request<void>(`/api/incidents/${id}`, { method: "DELETE" }),
+
   listResources: () => request<ResourceResponse[]>("/api/resources"),
 
   createResource: (

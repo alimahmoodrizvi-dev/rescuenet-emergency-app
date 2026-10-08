@@ -12,9 +12,11 @@ const STATUSES: IncidentStatus[] = ["OPEN", "ACKNOWLEDGED", "RESOURCE_ASSIGNED",
 export function IncidentsPage({
   incidents,
   onIncidentUpdated,
+  onIncidentDeleted,
 }: {
   incidents: IncidentResponse[];
   onIncidentUpdated: (incident: IncidentResponse) => void;
+  onIncidentDeleted: (id: string) => void;
 }) {
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -27,6 +29,20 @@ export function IncidentsPage({
       ),
     [incidents, typeFilter, statusFilter]
   );
+
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function deleteIncident(incident: IncidentResponse) {
+    if (!confirm(`Delete this closed ${incident.type.replace("_", " ").toLowerCase()} incident? This can't be undone.`)) return;
+    setDeleteError(null);
+    try {
+      await api.deleteIncident(incident.id);
+      onIncidentDeleted(incident.id);
+      setSelected((current) => (current?.id === incident.id ? null : current));
+    } catch {
+      setDeleteError("Couldn't delete this incident. It must be Closed, and you need Rescue Operator or Admin role.");
+    }
+  }
 
   return (
     <div>
@@ -56,6 +72,8 @@ export function IncidentsPage({
         </span>
       </div>
 
+      {deleteError && <p className="error-text">{deleteError}</p>}
+
       <div className="two-col">
         <div className="card" style={{ padding: 0, overflow: "hidden" }}>
           <table>
@@ -66,6 +84,7 @@ export function IncidentsPage({
                 <th>People</th>
                 <th>Status</th>
                 <th>Reported</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -80,11 +99,22 @@ export function IncidentsPage({
                     <IncidentStatusBadge status={i.status} />
                   </td>
                   <td>{new Date(i.created_at + "Z").toLocaleTimeString()}</td>
+                  <td>
+                    {i.status === "CLOSED" && (
+                      <button
+                        className="btn"
+                        style={{ fontSize: 12, color: "#d8261c" }}
+                        onClick={(e) => { e.stopPropagation(); deleteIncident(i); }}
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: "center", color: "var(--text-dim)", padding: 24 }}>
+                  <td colSpan={6} style={{ textAlign: "center", color: "var(--text-dim)", padding: 24 }}>
                     No incidents match these filters.
                   </td>
                 </tr>
@@ -94,7 +124,11 @@ export function IncidentsPage({
         </div>
 
         {selected ? (
-          <IncidentDetail incident={selected} onUpdated={(updated) => { setSelected(updated); onIncidentUpdated(updated); }} />
+          <IncidentDetail
+            incident={selected}
+            onUpdated={(updated) => { setSelected(updated); onIncidentUpdated(updated); }}
+            onDelete={() => deleteIncident(selected)}
+          />
         ) : (
           <div className="card" style={{ color: "var(--text-dim)", fontSize: 13 }}>
             Select an incident to see details, assign a resource, or update its status.
@@ -108,9 +142,11 @@ export function IncidentsPage({
 function IncidentDetail({
   incident,
   onUpdated,
+  onDelete,
 }: {
   incident: IncidentResponse;
   onUpdated: (i: IncidentResponse) => void;
+  onDelete: () => void;
 }) {
   const [updateText, setUpdateText] = useState("");
   const [statusChange, setStatusChange] = useState<IncidentStatus | "">("");
@@ -226,6 +262,15 @@ function IncidentDetail({
         </button>
       </div>
       {error && <p className="error-text">{error}</p>}
+
+      {incident.status === "CLOSED" && (
+        <>
+          <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "12px 0" }} />
+          <button className="btn" style={{ color: "#d8261c" }} onClick={onDelete}>
+            Delete closed incident
+          </button>
+        </>
+      )}
     </div>
   );
 }

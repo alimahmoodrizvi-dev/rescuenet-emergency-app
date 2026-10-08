@@ -81,6 +81,25 @@ def get_incident(incident_id: str, db: Session = Depends(get_db)):
     return incident
 
 
+@router.delete("/{incident_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_incident(
+    incident_id: str,
+    current_user: User = Depends(require_roles(UserRole.RESCUE_OPERATOR, UserRole.COMMAND_CENTER_ADMIN)),
+    db: Session = Depends(get_db),
+):
+    """Only CLOSED incidents can be deleted — an open or in-progress incident disappearing
+    from the map could hide a real emergency. The ORM cascade on EmergencyIncident also
+    removes its updates, resource assignments, and AI analysis rows."""
+    incident = db.get(EmergencyIncident, incident_id)
+    if incident is None:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    if incident.status != IncidentStatus.CLOSED:
+        raise HTTPException(status_code=409, detail="Only closed incidents can be deleted")
+    db.delete(incident)
+    db.commit()
+    await manager.broadcast("incident_deleted", {"id": incident_id})
+
+
 @router.post("/{incident_id}/updates", response_model=IncidentResponse)
 async def add_incident_update(
     incident_id: str,

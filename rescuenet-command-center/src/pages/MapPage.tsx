@@ -64,7 +64,9 @@ function ClickCapture({ active, onClick }: { active: boolean; onClick: (lat: num
   return null;
 }
 
-export function MapPage({ incidents }: { incidents: IncidentResponse[] }) {
+export function MapPage({
+  incidents, onIncidentDeleted,
+}: { incidents: IncidentResponse[]; onIncidentDeleted: (id: string) => void }) {
   const [resources, setResources] = useState<ResourceResponse[]>([]);
   const [shelters, setShelters] = useState<ShelterResponse[]>([]);
   const [hospitals, setHospitals] = useState<HospitalResponse[]>([]);
@@ -180,6 +182,16 @@ export function MapPage({ incidents }: { incidents: IncidentResponse[] }) {
         : "Couldn't save affected area. Try again.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleDeleteIncident(incident: IncidentResponse) {
+    if (!confirm(`Delete this closed ${incident.type.replace("_", " ").toLowerCase()} incident? This can't be undone.`)) return;
+    try {
+      await api.deleteIncident(incident.id);
+      onIncidentDeleted(incident.id);
+    } catch {
+      alert("Couldn't delete this incident. It must be Closed, and you need Rescue Operator or Admin role.");
     }
   }
 
@@ -392,6 +404,13 @@ export function MapPage({ incidents }: { incidents: IncidentResponse[] }) {
               {i.people_count} people · {i.status.replace("_", " ")}
               <br />
               <span style={{ color: "#666" }}>{i.description}</span>
+              {i.status === "CLOSED" && (
+                <div style={{ marginTop: 8 }}>
+                  <button className="btn" style={{ fontSize: 12, color: "#d8261c" }} onClick={() => handleDeleteIncident(i)}>
+                    Delete closed incident
+                  </button>
+                </div>
+              )}
             </Popup>
           </CircleMarker>
         ))}
