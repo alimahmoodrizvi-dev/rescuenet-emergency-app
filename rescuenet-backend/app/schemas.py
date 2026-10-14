@@ -266,3 +266,82 @@ class DashboardStatistics(BaseModel):
     active_resources: int
     average_ai_confidence: Optional[float]
     network_messages_received: int
+
+
+# ---------------------------------------------------------------------------
+# Nearby Help + Safe Route (mobile app)
+# ---------------------------------------------------------------------------
+
+class NearbyPlaceResponse(BaseModel):
+    id: str
+    name: str
+    category: str  # Hospital | Clinic | Police | Fire | Shelter | Assembly Point
+    latitude: float
+    longitude: float
+    distance_km: float
+    source: str  # "RescueNet" (entered by coordinators) | "OpenStreetMap"
+    phone: Optional[str] = None
+    detail: Optional[str] = None
+
+
+class NearbyPlacesResponse(BaseModel):
+    origin_lat: float
+    origin_lng: float
+    radius_km: float
+    # False means the OpenStreetMap lookup failed, so only RescueNet's own entries are shown —
+    # the app tells the user the list may be incomplete rather than presenting it as complete.
+    osm_available: bool
+    places: list[NearbyPlaceResponse]
+
+
+class RouteStepResponse(BaseModel):
+    instruction: str
+    distance_m: float
+    duration_s: float
+
+
+class RouteHazardRef(BaseModel):
+    id: str
+    type: str
+    message: str
+
+
+class HazardZoneResponse(BaseModel):
+    id: str
+    type: str
+    message: str
+    latitude: float
+    longitude: float
+    radius_m: float
+    color: str
+    crossed: bool  # True if the recommended route runs through this zone
+
+
+class RouteOptionResponse(BaseModel):
+    distance_m: float
+    duration_s: float
+    geometry: list[list[float]]  # [[lat, lng], ...] from the start to the destination
+    steps: list[RouteStepResponse]
+    exposure_m: float
+    risk: str  # "CLEAR" | "HAZARD"
+    label: str
+    crossed_hazards: list[RouteHazardRef]
+
+
+class RouteDestinationResponse(BaseModel):
+    name: str
+    category: str
+    latitude: float
+    longitude: float
+    chosen_automatically: bool
+
+
+class SafeRouteResponse(BaseModel):
+    mode: str
+    origin_lat: float
+    origin_lng: float
+    destination: RouteDestinationResponse
+    recommended: RouteOptionResponse
+    alternatives: list[RouteOptionResponse]
+    hazard_zones: list[HazardZoneResponse]
+    caveat: str

@@ -65,7 +65,7 @@ fun ImSafeButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxWidth()
             .height(64.dp)
-            .semantics { contentDescription = "I'm Safe. Notify your family you are safe." }
+            .semantics { contentDescription = "I'm Safe. Record that you are safe." }
     ) {
         Icon(Icons.Filled.CheckCircle, contentDescription = null)
         Spacer(Modifier.width(8.dp))

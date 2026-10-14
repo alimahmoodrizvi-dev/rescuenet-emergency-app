@@ -25,4 +25,11 @@ interface FamilyMemberDao {
 
     @Query("SELECT COUNT(*) FROM family_members")
     suspend fun count(): Int
+
+    /** Never deletes the device owner's own row, even if called with its id. */
+    @Query("DELETE FROM family_members WHERE id = :id AND isSelf = 0")
+    suspend fun deleteById(id: String)
+
+    @Query("SELECT COUNT(*) FROM family_members WHERE LOWER(name) = LOWER(:name)")
+    suspend fun countByName(name: String): Int
 }

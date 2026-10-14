@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<link rel="stylesheet" href="leaflet/leaflet.css">
+<style>
+  html, body, #map { height: 100%; margin: 0; padding: 0; background: #e8e6e0; }
+  .rn-you {
+    width: 18px; height: 18px; border-radius: 50%; background: #1c7fd6;
+    border: 3px solid #fff; box-shadow: 0 0 0 2px rgba(28,127,214,.35);
+  }
+  .rn-dest {
+    width: 26px; height: 26px; border-radius: 50% 50% 50% 0; background: #2fa84f;
+    border: 3px solid #fff; transform: rotate(-45deg); box-shadow: 0 1px 4px rgba(0,0,0,.4);
+  }
+  .rn-label {
+    background: #fff; border: 1px solid #c9ced8; border-radius: 6px; padding: 2px 6px;
+    font: 600 12px sans-serif; color: #10151f; box-shadow: none;
+  }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script src="leaflet/leaflet.js"></script>
+<script>
+  var map = L.map('map', { zoomControl: true }).setView([24.8607, 67.03], 12);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }).addTo(map);
+
+  var layer = L.layerGroup().addTo(map);
+
+  // Draws a response from GET /api/routes/safe exactly as the backend sends it.
+  //   resp          - the SafeRouteResponse JSON
+  //   selectedIndex - 0 = recommended route, 1.. = alternatives[index - 1]
+  window.renderRoute = function (resp, selectedIndex) {
+    layer.clearLayers();
+    var options = [resp.recommended].concat(resp.alternatives || []);
+    var selected = options[selectedIndex] || options[0];
+    var bounds = L.latLngBounds([]);
+
+    // Hazard zones first, so the route is drawn on top of them.
+    (resp.hazard_zones || []).forEach(function (z) {
+      L.circle([z.latitude, z.longitude], {
+        radius: z.radius_m, color: z.color, fillColor: z.color,
+        fillOpacity: z.crossed ? 0.30 : 0.15, weight: z.crossed ? 3 : 2, dashArray: z.crossed ? null : '6 4'
+      }).bindPopup('<b>' + escapeHtml(z.type.replace(/_/g, ' ')) + '</b><br>' + escapeHtml(z.message)).addTo(layer);
+    });
+
+    // The routes that were not chosen, thin and grey.
+    options.forEach(function (opt) {
+      if (opt === selected) return;
+      L.polyline(opt.geometry, { color: '#8a93a6', weight: 5, opacity: 0.8, dashArray: '2 8' }).addTo(layer);
+    });
+
+    // The chosen route: white outline underneath so it stands out on any map colour.
+    var color = selected.risk === 'CLEAR' ? '#1f9d55' : '#e1341e';
+    L.polyline(selected.geometry, { color: '#ffffff', weight: 11, opacity: 0.95 }).addTo(layer);
+    var line = L.polyline(selected.geometry, { color: color, weight: 7, opacity: 1 }).addTo(layer);
+    bounds.extend(line.getBounds());
+
+    var you = [resp.origin_lat, resp.origin_lng];
+    var dest = [resp.destination.latitude, resp.destination.longitude];
+    L.marker(you, {
+      icon: L.divIcon({ className: '', html: '<div class="rn-you"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }),
+      keyboard: false
+    }).bindTooltip('You are here', { direction: 'top', className: 'rn-label' }).addTo(layer);
+    L.marker(dest, {
+      icon: L.divIcon({ className: '', html: '<div class="rn-dest"></div>', iconSize: [26, 26], iconAnchor: [4, 24] }),
+      keyboard: false
+    }).bindTooltip(escapeHtml(resp.destination.name), { permanent: true, direction: 'auto', offset: [-4, -8], className: 'rn-label' }).addTo(layer);
+    bounds.extend(you);
+    bounds.extend(dest);
+
+    map.fitBounds(bounds, { padding: [28, 28] });
+  };
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  // Lets the app know the page is ready to receive renderRoute() calls.
+  window.rnReady = true;
+</script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 package com.rescuenet.app.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -10,6 +11,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.rescuenet.app.data.model.RouteDestination
 import com.rescuenet.app.data.viewmodel.EmergencyReportViewModel
 import com.rescuenet.app.data.viewmodel.HomeViewModel
 import com.rescuenet.app.ui.screens.*
@@ -53,7 +55,12 @@ fun RescueNetNavGraph(
                 onImSafe = { homeViewModel.markSafe() },
                 onMyLocation = { navController.navigate(Destinations.NetworkStatus.route) },
                 onNearbyHelp = { navController.navigate(Destinations.NearbyHelp.route) },
-                onSafeRoute = { navController.navigate(Destinations.SafeRoute.route) },
+                onSafeRoute = {
+                    // Opened from Home: let the server pick the nearest safe area, not whatever
+                    // place was chosen from Nearby Help earlier.
+                    homeViewModel.setRouteDestination(null)
+                    navController.navigate(Destinations.SafeRoute.route)
+                },
                 onNetworkStatus = { navController.navigate(Destinations.NetworkStatus.route) },
                 onFamily = { navController.navigate(Destinations.Family.route) },
                 onSettings = { navController.navigate(Destinations.Settings.route) },
@@ -116,15 +123,26 @@ fun RescueNetNavGraph(
         }
 
         composable(Destinations.Family.route) {
-            FamilyScreen(viewModel = homeViewModel, onAddContact = { /* Phase 3 */ })
+            FamilyScreen(viewModel = homeViewModel)
         }
 
         composable(Destinations.NearbyHelp.route) {
-            NearbyHelpScreen(viewModel = homeViewModel)
+            NearbyHelpScreen(
+                onGetRoute = { place ->
+                    homeViewModel.setRouteDestination(
+                        RouteDestination(place.name, place.category, place.latitude, place.longitude)
+                    )
+                    navController.navigate(Destinations.SafeRoute.route)
+                },
+            )
         }
 
         composable(Destinations.SafeRoute.route) {
-            SafeRouteScreen()
+            val destination by homeViewModel.routeDestination.collectAsState()
+            SafeRouteScreen(
+                destination = destination,
+                onDestinationChange = { homeViewModel.setRouteDestination(it) },
+            )
         }
 
         composable(Destinations.NetworkStatus.route) {

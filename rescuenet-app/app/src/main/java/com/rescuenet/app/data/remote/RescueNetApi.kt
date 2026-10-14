@@ -4,8 +4,10 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
+import retrofit2.http.Query
 
 /**
  * Retrofit client for the Phase 5 backend (`rescuenet-backend/`). Field names mirror
@@ -27,6 +29,31 @@ interface RescueNetApi {
         @Header("Authorization") bearerToken: String,
         @Body request: AIAnalyzeIncidentRequestDto,
     ): Response<AIAnalyzeIncidentResponseDto>
+
+    /** Help near a real location, nearest first. Retrofit can't use Kotlin default arguments
+     *  on interface methods, so callers always pass every parameter. */
+    @GET("api/places/nearby")
+    suspend fun nearbyPlaces(
+        @Header("Authorization") bearerToken: String,
+        @Query("lat") lat: Double,
+        @Query("lng") lng: Double,
+        @Query("radius_km") radiusKm: Double,
+        @Query("limit") limit: Int,
+    ): Response<NearbyPlacesDto>
+
+    /** A road route to a safe area that avoids recorded hazard zones. A null destination
+     *  means "pick the nearest safe area for me" (null query parameters are simply omitted). */
+    @GET("api/routes/safe")
+    suspend fun safeRoute(
+        @Header("Authorization") bearerToken: String,
+        @Query("from_lat") fromLat: Double,
+        @Query("from_lng") fromLng: Double,
+        @Query("to_lat") toLat: Double?,
+        @Query("to_lng") toLng: Double?,
+        @Query("to_name") toName: String?,
+        @Query("to_category") toCategory: String?,
+        @Query("mode") mode: String,
+    ): Response<SafeRouteDto>
 }
 
 @Serializable

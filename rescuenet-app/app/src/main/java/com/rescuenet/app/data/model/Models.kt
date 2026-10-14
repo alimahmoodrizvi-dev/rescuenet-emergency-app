@@ -49,12 +49,6 @@ data class FamilyMember(
     val lastUpdatedLabel: String,
 )
 
-data class NearbyHelpPlace(
-    val id: String,
-    val name: String,
-    val category: String, // Hospital / Shelter / Police / Fire / Assembly Point
-    val distanceKm: Double,
-)
 
 data class NetworkStatusInfo(
     val internetConnected: Boolean,

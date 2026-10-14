@@ -56,4 +56,51 @@ class LocationProvider @Inject constructor(
             }
         }
     }
+
+    /**
+     * For screens that need "where is this phone right now" (Nearby Help, Safe Route). Asks for
+     * a high-accuracy fix; if that doesn't arrive in time (typically indoors), falls back to the
+     * last location the phone knows about instead of giving up. Returns null only if permission
+     * is missing or the device has no location at all.
+     */
+    suspend fun getBestLocation(): DeviceLocation? {
+        if (!hasLocationPermission()) return null
+
+        val client = LocationServices.getFusedLocationProviderClient(context)
+        val request = CurrentLocationRequest.Builder()
+            .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+            .setDurationMillis(10_000L)
+            .build()
+
+        val fresh: DeviceLocation? = suspendCancellableCoroutine { continuation ->
+            try {
+                client.getCurrentLocation(request, null)
+                    .addOnSuccessListener { location ->
+                        val result = location?.let { DeviceLocation(it.latitude, it.longitude, it.accuracy) }
+                        if (continuation.isActive) continuation.resume(result)
+                    }
+                    .addOnFailureListener {
+                        if (continuation.isActive) continuation.resume(null)
+                    }
+            } catch (e: SecurityException) {
+                if (continuation.isActive) continuation.resume(null)
+            }
+        }
+        if (fresh != null) return fresh
+
+        return suspendCancellableCoroutine { continuation ->
+            try {
+                client.lastLocation
+                    .addOnSuccessListener { location ->
+                        val result = location?.let { DeviceLocation(it.latitude, it.longitude, it.accuracy) }
+                        if (continuation.isActive) continuation.resume(result)
+                    }
+                    .addOnFailureListener {
+                        if (continuation.isActive) continuation.resume(null)
+                    }
+            } catch (e: SecurityException) {
+                if (continuation.isActive) continuation.resume(null)
+            }
+        }
+    }
 }

@@ -1,11 +1,13 @@
 package com.rescuenet.app.data.remote
 
 import kotlinx.serialization.json.Json
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 import okhttp3.MediaType.Companion.toMediaType
@@ -25,7 +27,22 @@ class BackendApiClient @Inject constructor() {
 
     fun apiFor(baseUrl: String): RescueNetApi = cache.getOrPut(normalize(baseUrl)) {
         val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
-        val client = OkHttpClient.Builder().addInterceptor(logging).build()
+        // Nearby Help and Safe Route make the server consult public map services (and a free-tier
+        // server may first need to wake up), so those two calls get a longer read timeout. Every
+        // other call keeps the default so emergency reports still fail fast and fall back to the
+        // offline queue instead of making someone wait.
+        val patientForHelpLookups = Interceptor { chain ->
+            val path = chain.request().url.encodedPath
+            if (path.startsWith("/api/places/nearby") || path.startsWith("/api/routes/")) {
+                chain.withReadTimeout(60, TimeUnit.SECONDS).proceed(chain.request())
+            } else {
+                chain.proceed(chain.request())
+            }
+        }
+        val client = OkHttpClient.Builder()
+            .addInterceptor(patientForHelpLookups)
+            .addInterceptor(logging)
+            .build()
         Retrofit.Builder()
             .baseUrl(normalize(baseUrl))
             .client(client)

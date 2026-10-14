@@ -32,5 +32,16 @@ class Settings(BaseSettings):
     # CORS — the Command Center web app's origin(s) in production; "*" is fine for local dev only.
     cors_allow_origins: str = "*"
 
+    # Public data services behind the mobile app's Nearby Help and Safe Route screens. Both are
+    # free community services with fair-use limits (not a paid, guaranteed-uptime API), so every
+    # call here is cached or tightly scoped, and every caller degrades gracefully if they're down.
+    # Override with your own self-hosted/commercial endpoints via RESCUENET_* env vars. Note the
+    # OSRM URLs end in /driving even for walking: the profile name in the URL is ignored by
+    # osrm-routed — what matters is which server (routed-car vs routed-foot) you call.
+    overpass_url: str = "https://overpass-api.de/api/interpreter"
+    routing_driving_url: str = "https://router.project-osrm.org/route/v1/driving"
+    routing_walking_url: str = "https://routing.openstreetmap.de/routed-foot/route/v1/driving"
+    external_timeout_seconds: float = 20.0
+
 
 settings = Settings()

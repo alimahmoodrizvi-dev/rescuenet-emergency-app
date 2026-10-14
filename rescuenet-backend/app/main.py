@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import Base, SessionLocal, engine
 from app.models import AlertType, HazardType, Hospital, Resource, ResourceStatus, ResourceType, Shelter
-from app.routers import ai, alerts, auth, dashboard, hazard_types, incidents, places, resources, safety, sync
+from app.routers import ai, alerts, auth, dashboard, hazard_types, incidents, places, resources, routes, safety, sync
 from app.websocket import manager
 
 
@@ -42,6 +42,7 @@ app.include_router(incidents.router)
 app.include_router(safety.router)
 app.include_router(resources.router)
 app.include_router(places.router)
+app.include_router(routes.router)
 app.include_router(ai.router)
 app.include_router(alerts.router)
 app.include_router(hazard_types.router)

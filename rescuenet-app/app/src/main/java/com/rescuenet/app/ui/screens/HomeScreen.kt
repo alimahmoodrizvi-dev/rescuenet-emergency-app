@@ -17,7 +17,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.rescuenet.app.data.model.FamilyMember
+import com.rescuenet.app.data.model.SafetyStatus
 import com.rescuenet.app.data.viewmodel.HomeViewModel
+import kotlinx.coroutines.launch
 import com.rescuenet.app.ui.components.ImSafeButton
 import com.rescuenet.app.ui.components.NeedHelpButton
 import com.rescuenet.app.ui.components.NetworkStatusBanner
@@ -37,8 +40,12 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val networkStatus by viewModel.networkStatus.collectAsState()
+    val myStatus by viewModel.myStatus.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("RescueNet") },
@@ -72,7 +79,24 @@ fun HomeScreen(
 
             Spacer(Modifier.height(20.dp))
 
-            ImSafeButton(onClick = onImSafe)
+            ImSafeButton(
+                onClick = {
+                    onImSafe()
+                    // Without this the tap looked like it did nothing: the status is saved to a
+                    // row that isn't shown anywhere, so say plainly what just happened.
+                    scope.launch {
+                        snackbarHostState.showSnackbar(
+                            if (networkStatus.internetConnected) {
+                                "Marked safe. Sending your status now."
+                            } else {
+                                "Marked safe. Saved on this phone — it will be sent as soon as you're back online."
+                            }
+                        )
+                    }
+                }
+            )
+
+            MyStatusLine(myStatus)
 
             Spacer(Modifier.height(20.dp))
 
@@ -90,6 +114,25 @@ fun HomeScreen(
             Spacer(Modifier.height(24.dp))
         }
     }
+}
+
+@Composable
+private fun MyStatusLine(myStatus: FamilyMember?) {
+    val text = if (myStatus == null) {
+        "Your status: not shared yet"
+    } else {
+        when (myStatus.status) {
+            SafetyStatus.SAFE -> "Your status: Safe · updated ${myStatus.lastUpdatedLabel}"
+            SafetyStatus.NEEDS_HELP -> "Your status: Needs help · updated ${myStatus.lastUpdatedLabel}"
+            SafetyStatus.UNKNOWN -> "Your status: not shared yet"
+        }
+    }
+    Text(
+        text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 8.dp, start = 4.dp),
+    )
 }
 
 private data class QuickAction(

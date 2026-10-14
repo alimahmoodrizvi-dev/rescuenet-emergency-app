@@ -7,6 +7,7 @@ import com.rescuenet.app.data.local.entity.IncidentEntity
 import com.rescuenet.app.data.mesh.MeshRelayManager
 import com.rescuenet.app.data.model.*
 import com.rescuenet.app.data.offline.NetworkConnectivityObserver
+import com.rescuenet.app.data.repository.AddMemberResult
 import com.rescuenet.app.data.repository.FamilyRepository
 import com.rescuenet.app.data.repository.IncidentRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -37,6 +38,9 @@ class HomeViewModel @Inject constructor(
     private val demoNearbyNodesOverride = MutableStateFlow<Int?>(null)
     private val lastSyncEpochMs = MutableStateFlow<Long?>(null)
 
+    private val _routeDestination = MutableStateFlow<RouteDestination?>(null)
+    val routeDestination: StateFlow<RouteDestination?> = _routeDestination.asStateFlow()
+
     val networkStatus: StateFlow<NetworkStatusInfo> = combine(
         connectivityObserver.observe(),
         demoOverride,
@@ -53,23 +57,16 @@ class HomeViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), NetworkStatusInfo(true, 0, "—"))
 
+    val myStatus: StateFlow<FamilyMember?> = familyRepository.observeMembers()
+        .map { entities -> entities.firstOrNull { it.isSelf }?.toUiModel() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     val familyMembers: StateFlow<List<FamilyMember>> = familyRepository.observeMembers()
         .map { entities -> entities.filterNot { it.isSelf }.map { it.toUiModel() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val incidents: StateFlow<List<IncidentEntity>> = incidentRepository.observeIncidents()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    // Nearby Help stays static/simulated until Phase 5 wires a real Hospitals/Shelters API.
-    private val _nearbyHelp = MutableStateFlow(
-        listOf(
-            NearbyHelpPlace("h1", "Civil Hospital", "Hospital", 1.2),
-            NearbyHelpPlace("s1", "Government Shelter #3", "Shelter", 2.4),
-            NearbyHelpPlace("p1", "Police Station Saddar", "Police", 0.9),
-            NearbyHelpPlace("f1", "Fire Station North", "Fire", 3.1),
-        )
-    )
-    val nearbyHelp: StateFlow<List<NearbyHelpPlace>> = _nearbyHelp
 
     init {
         viewModelScope.launch { familyRepository.seedIfEmpty() }
@@ -84,8 +81,24 @@ class HomeViewModel @Inject constructor(
         meshRelayManager.start()
     }
 
+    fun setRouteDestination(destination: RouteDestination?) {
+        _routeDestination.value = destination
+    }
+
     fun markSafe() {
         viewModelScope.launch { familyRepository.markSelfSafe() }
+    }
+
+    fun addFamilyMember(name: String, onResult: (AddMemberResult) -> Unit) {
+        viewModelScope.launch {
+            onResult(familyRepository.addMember(name))
+        }
+    }
+
+    fun removeFamilyMember(id: String) {
+        viewModelScope.launch {
+            familyRepository.removeMember(id)
+        }
     }
 
     /** Demo-mode hooks (Part 16) — override, not a real radio state change. */
