@@ -22,7 +22,7 @@ import com.rescuenet.app.data.local.entity.UserProfileEntity
         UserProfileEntity::class,
         NetworkMessageEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

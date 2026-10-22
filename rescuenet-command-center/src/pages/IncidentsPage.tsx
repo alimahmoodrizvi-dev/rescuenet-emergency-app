@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { api } from "../api/client";
 import { IncidentStatusBadge, SeverityBadge } from "../components/Badges";
+import { CallButton, PhoneLink, ReporterSafeBadge, formatUtcTime } from "../components/PhoneLink";
 import type { IncidentResponse, IncidentStatus, IncidentType, ResourceRecommendation } from "../api/types";
 
 const TYPES: IncidentType[] = [
@@ -20,7 +21,12 @@ export function IncidentsPage({
 }) {
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [selected, setSelected] = useState<IncidentResponse | null>(null);
+  const [selectedSnapshot, setSelected] = useState<IncidentResponse | null>(null);
+  // Always show the freshest copy of the selected incident, so changes pushed live (the reporter
+  // marking themselves safe, a status change by someone else) appear without re-clicking the row.
+  const selected = selectedSnapshot
+    ? incidents.find((i) => i.id === selectedSnapshot.id) ?? selectedSnapshot
+    : null;
 
   const filtered = useMemo(
     () =>
@@ -97,6 +103,7 @@ export function IncidentsPage({
                   <td>{i.people_count}</td>
                   <td>
                     <IncidentStatusBadge status={i.status} />
+                    {i.reporter_status === "SAFE" && <ReporterSafeBadge at={i.reporter_status_at} />}
                   </td>
                   <td>{new Date(i.created_at + "Z").toLocaleTimeString()}</td>
                   <td>
@@ -208,7 +215,22 @@ function IncidentDetail({
         <Row label="Needs" value={incident.needs || "—"} />
         <Row label="Location" value={incident.latitude ? `${incident.latitude.toFixed(4)}, ${incident.longitude?.toFixed(4)}` : "Unknown"} />
         <Row label="Source" value={incident.source} />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0" }}>
+          <dt style={{ color: "var(--text-dim)" }}>Phone</dt>
+          <dd style={{ margin: 0, fontWeight: 500 }}><PhoneLink phone={incident.reporter_phone} /></dd>
+        </div>
       </dl>
+
+      {incident.reporter_status === "SAFE" && (
+        <p style={{ background: "#dff3e4", border: "1px solid #9fd5ae", color: "#1d7a3a", borderRadius: 8, padding: "8px 10px", fontSize: 13, margin: "8px 0" }}>
+          <strong>✓ The reporter has marked themselves safe</strong>
+          {incident.reporter_status_at ? ` at ${formatUtcTime(incident.reporter_status_at)}` : ""}. Confirm
+          with them by phone before closing this incident.
+        </p>
+      )}
+      {incident.reporter_phone && (
+        <div style={{ margin: "8px 0" }}><CallButton phone={incident.reporter_phone} /></div>
+      )}
 
       <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "12px 0" }} />
 

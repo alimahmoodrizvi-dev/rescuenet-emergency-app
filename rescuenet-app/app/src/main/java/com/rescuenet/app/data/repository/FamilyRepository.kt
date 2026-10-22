@@ -5,15 +5,18 @@ import com.rescuenet.app.data.local.dao.SyncQueueDao
 import com.rescuenet.app.data.local.entity.FamilyMemberEntity
 import com.rescuenet.app.data.local.entity.SyncQueueEntity
 import com.rescuenet.app.data.location.LocationProvider
+import com.rescuenet.app.data.model.PhoneNumbers
 import com.rescuenet.app.data.model.SafetyStatus
 import com.rescuenet.app.data.offline.OfflineQueueManager
+import com.rescuenet.app.data.settings.SettingsDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
-enum class AddMemberResult { ADDED, EMPTY, DUPLICATE }
+enum class AddMemberResult { ADDED, EMPTY, DUPLICATE, INVALID_PHONE }
 
 @Singleton
 class FamilyRepository @Inject constructor(
@@ -21,6 +24,7 @@ class FamilyRepository @Inject constructor(
     private val syncQueueDao: SyncQueueDao,
     private val offlineQueueManager: OfflineQueueManager,
     private val locationProvider: LocationProvider,
+    private val settingsDataStore: SettingsDataStore,
 ) {
     fun observeMembers(): Flow<List<FamilyMemberEntity>> = familyMemberDao.observeAll()
 
@@ -45,9 +49,11 @@ class FamilyRepository @Inject constructor(
      * plus a status. Live status for a contact needs that person's own phone to be linked,
      * which isn't built yet — see the note shown on the Family screen.
      */
-    suspend fun addMember(rawName: String): AddMemberResult {
+    suspend fun addMember(rawName: String, rawPhone: String): AddMemberResult {
         val name = rawName.trim().take(MAX_NAME_LENGTH)
         if (name.isEmpty()) return AddMemberResult.EMPTY
+        // The number is optional, but if one is typed it must be a real-looking number.
+        val phone = if (rawPhone.isBlank()) null else PhoneNumbers.normalize(rawPhone) ?: return AddMemberResult.INVALID_PHONE
         if (familyMemberDao.countByName(name) > 0) return AddMemberResult.DUPLICATE
         familyMemberDao.upsert(
             FamilyMemberEntity(
@@ -55,6 +61,7 @@ class FamilyRepository @Inject constructor(
                 name = name,
                 status = SafetyStatus.UNKNOWN,
                 lastUpdatedEpochMs = System.currentTimeMillis(),
+                phone = phone,
             )
         )
         return AddMemberResult.ADDED
@@ -71,14 +78,16 @@ class FamilyRepository @Inject constructor(
         familyMemberDao.updateSelfStatus(SafetyStatus.SAFE, now)
 
         val location = withTimeoutOrNull(LOCATION_WAIT_MS) { locationProvider.getCurrentLocation() }
-        val locationJson = location?.let { ",\"latitude\":${it.latitude},\"longitude\":${it.longitude}" } ?: ""
+        // The person's own number, so the Command Center can match this "I'm safe" to the help
+        // request they sent earlier (and call them). Re-validated before it is sent.
+        val phone = PhoneNumbers.normalize(settingsDataStore.myPhone.first())
 
         syncQueueDao.enqueue(
             SyncQueueEntity(
                 eventUuid = UUID.randomUUID().toString(),
                 entityType = "safety_status",
                 entityId = "self",
-                payloadJson = "{\"status\":\"SAFE\",\"at\":$now$locationJson}",
+                payloadJson = buildSafePayloadJson(now, location?.latitude, location?.longitude, phone),
                 createdAtEpochMs = now,
             )
         )

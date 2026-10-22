@@ -5,9 +5,10 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { api, ApiError } from "../api/client";
 import { pulseIcon, UNRATED_PULSE_COLOR } from "../components/pulseIcon";
+import { CallButton, PhoneLink, ReporterSafeBadge, formatUtcTime } from "../components/PhoneLink";
 import type {
   AffectedAreaCircle, AlertResponse, AlertSeverity, AlertType, HazardTypeResponse,
-  HospitalResponse, IncidentResponse, ResourceResponse, ResourceType, ShelterResponse, Severity,
+  HospitalResponse, IncidentResponse, ResourceResponse, ResourceType, SafetyCheckin, ShelterResponse, Severity,
 } from "../api/types";
 
 // Leaflet's default marker icons reference image files that Vite doesn't bundle
@@ -77,10 +78,13 @@ function ClickCapture({ active, onClick }: { active: boolean; onClick: (lat: num
   return null;
 }
 
+const SAFE_GREEN = "#2fa84f";
+
 export function MapPage({
-  incidents, onIncidentDeleted, onIncidentUpdated,
+  incidents, checkins, onIncidentDeleted, onIncidentUpdated,
 }: {
   incidents: IncidentResponse[];
+  checkins: SafetyCheckin[];
   onIncidentDeleted: (id: string) => void;
   onIncidentUpdated: (incident: IncidentResponse) => void;
 }) {
@@ -91,12 +95,15 @@ export function MapPage({
   const [hazardTypes, setHazardTypes] = useState<HazardTypeResponse[]>([]);
 
   const location = useLocation();
-  const focusId = (location.state as { focusIncidentId?: string } | null)?.focusIncidentId;
+  const navState = location.state as { focusIncidentId?: string; focusLat?: number; focusLng?: number } | null;
+  const focusId = navState?.focusIncidentId;
   const focusIncident = focusId ? incidents.find((i) => i.id === focusId) : undefined;
   const focusTarget: [number, number] | null =
     focusIncident && focusIncident.latitude != null && focusIncident.longitude != null
       ? [focusIncident.latitude, focusIncident.longitude]
-      : null;
+      : navState?.focusLat != null && navState?.focusLng != null
+        ? [navState.focusLat, navState.focusLng]
+        : null;
 
   const [mode, setMode] = useState<Mode>("view");
   const [pendingLatLng, setPendingLatLng] = useState<{ lat: number; lng: number } | null>(null);
@@ -429,6 +436,13 @@ export function MapPage({
               {i.people_count} people · {i.status.replace("_", " ")}
               <br />
               <span style={{ color: "#666" }}>{i.description}</span>
+              <div style={{ marginTop: 6 }}>
+                <strong>Phone:</strong> <PhoneLink phone={i.reporter_phone} />
+                {i.reporter_status === "SAFE" && <ReporterSafeBadge at={i.reporter_status_at} />}
+              </div>
+              {i.reporter_phone && (
+                <div style={{ marginTop: 6 }}><CallButton phone={i.reporter_phone} small /></div>
+              )}
               {i.status === "OPEN" && (
                 <div style={{ marginTop: 8 }}>
                   <button className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => handleAcknowledgeIncident(i)}>
@@ -448,7 +462,9 @@ export function MapPage({
 
           // OPEN = nobody has acknowledged it yet, so it blinks until someone does.
           if (i.status === "OPEN") {
-            const color = i.severity ? severityColor[i.severity] ?? UNRATED_PULSE_COLOR : UNRATED_PULSE_COLOR;
+            const color = i.reporter_status === "SAFE"
+              ? SAFE_GREEN
+              : i.severity ? severityColor[i.severity] ?? UNRATED_PULSE_COLOR : UNRATED_PULSE_COLOR;
             return (
               <Marker key={i.id} position={[i.latitude as number, i.longitude as number]} icon={pulseIcon(color)}>
                 {popup}
@@ -472,6 +488,27 @@ export function MapPage({
             </CircleMarker>
           );
         })}
+
+        {checkins
+          .filter((c) => c.status === "SAFE" && c.latitude != null && c.longitude != null)
+          .map((c) => (
+            <CircleMarker
+              key={`checkin-${c.user_id}`}
+              center={[c.latitude as number, c.longitude as number]}
+              radius={8}
+              pathOptions={{ color: "white", weight: 2, fillColor: SAFE_GREEN, fillOpacity: 1 }}
+            >
+              <Popup>
+                <strong>✓ {c.label}</strong> marked themselves SAFE
+                <br />
+                <span style={{ color: "#666" }}>{formatUtcTime(c.updated_at)}</span>
+                <div style={{ marginTop: 6 }}>
+                  <strong>Phone:</strong> <PhoneLink phone={c.phone} />
+                </div>
+                {c.phone && <div style={{ marginTop: 6 }}><CallButton phone={c.phone} small /></div>}
+              </Popup>
+            </CircleMarker>
+          ))}
 
         {resources
           .filter((r) => r.latitude != null && r.longitude != null)
@@ -634,6 +671,10 @@ function Legend() {
       <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#e1341e", display: "inline-block", opacity: 0.5 }} />
         Blinking = awaiting acknowledgement
+      </span>
+      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#2fa84f", display: "inline-block" }} />
+        Person marked safe
       </span>
       <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#0fa3a3", display: "inline-block" }} />

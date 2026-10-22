@@ -2,6 +2,7 @@ package com.rescuenet.app.di
 
 import android.content.Context
 import androidx.room.Room
+import com.rescuenet.app.data.local.MIGRATION_2_3
 import com.rescuenet.app.data.local.RescueNetDatabase
 import com.rescuenet.app.data.local.dao.FamilyMemberDao
 import com.rescuenet.app.data.local.dao.IncidentDao
@@ -42,7 +43,9 @@ object DatabaseModule {
 
         return Room.databaseBuilder(context, RescueNetDatabase::class.java, RescueNetDatabase.DATABASE_NAME)
             .openHelperFactory(factory)
-            .fallbackToDestructiveMigration() // acceptable pre-1.0; replace with real migrations before release
+            .addMigrations(MIGRATION_2_3)
+            // Safety net for upgrades from versions older than 2 that have no migration written.
+            .fallbackToDestructiveMigration()
             .build()
     }
 

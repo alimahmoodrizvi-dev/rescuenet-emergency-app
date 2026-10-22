@@ -3,8 +3,8 @@
 package com.rescuenet.app.ui.screens
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import com.rescuenet.app.data.model.InjuryLevel
 import com.rescuenet.app.data.model.ResourceNeed
 import com.rescuenet.app.data.viewmodel.EmergencyReportViewModel
+import com.rescuenet.app.ui.components.MyPhoneField
 
 private fun injuryLabel(level: InjuryLevel) = when (level) {
     InjuryLevel.NONE -> "No"
@@ -54,7 +55,7 @@ fun NeedHelpDetailsScreen(
             ) { Text("Continue", style = MaterialTheme.typography.titleMedium) }
         }
     ) { padding ->
-        Column(Modifier.padding(padding).padding(20.dp)) {
+        Column(Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(20.dp)) {
 
             Text("How many people need help?", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
@@ -84,19 +85,23 @@ fun NeedHelpDetailsScreen(
             Spacer(Modifier.height(20.dp))
             Text("What do you need?", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
-            LazyColumn {
-                items(ResourceNeed.entries.chunked(2)) { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 4.dp)) {
-                        row.forEach { need ->
-                            FilterChip(
-                                selected = need in draft.needs,
-                                onClick = { viewModel.toggleNeed(need) },
-                                label = { Text(needLabel(need)) }
-                            )
-                        }
+            ResourceNeed.entries.chunked(2).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 4.dp)) {
+                    row.forEach { need ->
+                        FilterChip(
+                            selected = need in draft.needs,
+                            onClick = { viewModel.toggleNeed(need) },
+                            label = { Text(needLabel(need)) }
+                        )
                     }
                 }
             }
+
+            // So rescuers can call you back. Optional — it never stops a report from being sent.
+            Spacer(Modifier.height(20.dp))
+            Text("Can rescuers call you?", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            MyPhoneField()
         }
     }
 }

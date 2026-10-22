@@ -2,30 +2,39 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.auth import get_current_user
+from app import incident_view, safety_service
+from app.auth import get_current_user, require_roles
 from app.database import get_db
 from app.models import EmergencyContact, SafetyStatusUpdate, User
-from app.schemas import FamilyMemberStatusResponse, SafetyStatusRequest
+from app.schemas import FamilyMemberStatusResponse, SafetyCheckinResponse, SafetyStatusRequest
 
 router = APIRouter(prefix="/api", tags=["safety"])
 
 
 @router.post("/safety-status", status_code=201)
-def post_safety_status(
+async def post_safety_status(
     req: SafetyStatusRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Part 8 — "I'm Safe" / status updates are append-only rows, not a mutated field, so the
     family board can show history and so a late-arriving offline update (synced after a more
-    recent online one) doesn't clobber a newer status — see get_family_status's ordering."""
-    update = SafetyStatusUpdate(
-        user_id=current_user.id, status=req.status,
-        latitude=req.latitude, longitude=req.longitude,
-    )
-    db.add(update)
+    recent online one) doesn't clobber a newer status — see get_family_status's ordering.
+    Also makes the person visible as safe to Command Center staff (see safety_service)."""
+    outcome = safety_service.apply_status(db, current_user, req)
     db.commit()
+    await safety_service.broadcast_outcome(db, outcome)
     return {"accepted": True}
+
+
+@router.get("/safety/checkins", response_model=list[SafetyCheckinResponse])
+def list_safety_checkins(
+    current_user: User = Depends(require_roles(*incident_view.STAFF_ROLES)),
+    db: Session = Depends(get_db),
+):
+    """Command Center only: everyone who has reported a status, latest first, with the phone
+    number they chose to share so staff can reach them."""
+    return safety_service.list_checkins(db)
 
 
 @router.get("/family/{user_id}", response_model=list[FamilyMemberStatusResponse])

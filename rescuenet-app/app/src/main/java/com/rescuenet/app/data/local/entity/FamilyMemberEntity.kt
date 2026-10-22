@@ -12,4 +12,6 @@ data class FamilyMemberEntity(
     val lastUpdatedEpochMs: Long,
     /** True for the device owner's own status row, used by the "I'm Safe" button. */
     val isSelf: Boolean = false,
+    /** Optional mobile number, added in database version 3 (see Migrations.kt). */
+    val phone: String? = null,
 )

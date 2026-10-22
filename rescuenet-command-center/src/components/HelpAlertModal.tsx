@@ -4,6 +4,7 @@ import "leaflet/dist/leaflet.css";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { pulseIcon, UNRATED_PULSE_COLOR } from "./pulseIcon";
+import { CallButton, PhoneLink, ReporterSafeBadge } from "./PhoneLink";
 import type { IncidentResponse } from "../api/types";
 
 // Pop-up shown the moment a new help request arrives from a phone. It stays until an operator
@@ -76,6 +77,10 @@ export function HelpAlertModal({
         {incident.description && (
           <p style={{ fontSize: 13, color: "var(--text-dim)", margin: "6px 0 0" }}>{incident.description}</p>
         )}
+        <div style={{ fontSize: 14, margin: "10px 0 0" }}>
+          <strong>Phone:</strong> <PhoneLink phone={incident.reporter_phone} />
+          {incident.reporter_status === "SAFE" && <ReporterSafeBadge at={incident.reporter_status_at} />}
+        </div>
 
         {hasLocation ? (
           <>
@@ -109,6 +114,7 @@ export function HelpAlertModal({
 
         {error && <p className="error-text">{error}</p>}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <CallButton phone={incident.reporter_phone} />
           <button className="btn btn-primary" disabled={busy} onClick={acknowledge}>Acknowledge</button>
           {hasLocation && <button className="btn" onClick={viewOnMap}>View on live map</button>}
           <button className="btn" onClick={dismiss}>Dismiss</button>

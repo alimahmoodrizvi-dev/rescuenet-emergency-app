@@ -38,6 +38,26 @@ export interface IncidentResponse {
   source: string;
   created_at: string;
   updated_at: string;
+  // Only present for logged-in staff; always null for anyone else.
+  reporter_phone: string | null;
+  // What the reporter said about themselves since asking for help ("SAFE"), and when.
+  reporter_status: string | null;
+  reporter_status_at: string | null;
+}
+
+export type CheckinStatus = "SAFE" | "NEEDS_HELP" | "UNKNOWN";
+
+/** Latest self-reported status of one person (the "I'm safe" button in the mobile app). */
+export interface SafetyCheckin {
+  user_id: string;
+  label: string;
+  phone: string | null;
+  status: CheckinStatus;
+  latitude: number | null;
+  longitude: number | null;
+  updated_at: string;
+  open_incident_id: string | null;
+  open_incident_type: string | null;
 }
 
 export interface ResourceResponse {

@@ -4,7 +4,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.auth import get_current_user, require_roles
+from app import incident_view
+from app.auth import get_current_user, optional_current_user, require_roles
 from app.database import get_db
 from app.models import (
     EmergencyIncident, IncidentStatus, IncidentType, IncidentUpdate, Severity, User, UserRole,
@@ -26,7 +27,8 @@ async def create_incident(
     return the existing row instead of creating a second one."""
     existing = db.query(EmergencyIncident).filter(EmergencyIncident.event_uuid == req.event_uuid).first()
     if existing:
-        return existing
+        # Whoever asks gets the public view: never the reporter's phone or status.
+        return incident_view.build_response(db, existing, reveal_private=False)
 
     incident = EmergencyIncident(
         event_uuid=req.event_uuid,
@@ -40,13 +42,17 @@ async def create_incident(
         longitude=req.longitude,
         location_accuracy_m=req.location_accuracy_m,
         source=req.source,
+        reporter_phone=req.reporter_phone,
     )
     db.add(incident)
+    if req.reporter_phone and req.source == "app":
+        current_user.phone = req.reporter_phone  # the device itself shared its own number
     db.commit()
     db.refresh(incident)
 
-    await manager.broadcast("incident_created", IncidentResponse.model_validate(incident).model_dump())
-    return incident
+    # Command Center staff (live feed) get the full picture; the reporter gets the public view.
+    await incident_view.broadcast_incident(db, "incident_created", incident)
+    return incident_view.build_response(db, incident, reveal_private=False)
 
 
 @router.get("", response_model=list[IncidentResponse])
@@ -55,6 +61,7 @@ def list_incidents(
     severity: Optional[Severity] = None,
     status_filter: Optional[IncidentStatus] = Query(default=None, alias="status"),
     since: Optional[datetime] = None,
+    viewer: Optional[User] = Depends(optional_current_user),
     db: Session = Depends(get_db),
 ):
     """Supports the Part 9 filter set (type/severity/time/status); area and required-resource
@@ -70,15 +77,21 @@ def list_incidents(
         query = query.filter(EmergencyIncident.status == status_filter)
     if since:
         query = query.filter(EmergencyIncident.created_at >= since)
-    return query.order_by(EmergencyIncident.created_at.desc()).limit(500).all()
+    incidents = query.order_by(EmergencyIncident.created_at.desc()).limit(500).all()
+    # Still publicly readable as before; only logged-in staff also see phone numbers and safe status.
+    return incident_view.build_responses(db, incidents, reveal_private=incident_view.is_staff(viewer))
 
 
 @router.get("/{incident_id}", response_model=IncidentResponse)
-def get_incident(incident_id: str, db: Session = Depends(get_db)):
+def get_incident(
+    incident_id: str,
+    viewer: Optional[User] = Depends(optional_current_user),
+    db: Session = Depends(get_db),
+):
     incident = db.get(EmergencyIncident, incident_id)
     if incident is None:
         raise HTTPException(status_code=404, detail="Incident not found")
-    return incident
+    return incident_view.build_response(db, incident, reveal_private=incident_view.is_staff(viewer))
 
 
 @router.delete("/{incident_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -124,5 +137,5 @@ async def add_incident_update(
     db.commit()
     db.refresh(incident)
 
-    await manager.broadcast("incident_updated", IncidentResponse.model_validate(incident).model_dump())
-    return incident
+    await incident_view.broadcast_incident(db, "incident_updated", incident)
+    return incident_view.build_response(db, incident, reveal_private=True)  # endpoint is staff-only

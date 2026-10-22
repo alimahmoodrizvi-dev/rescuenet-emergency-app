@@ -1,7 +1,7 @@
 import type {
   AlertResponse, ClusterResponse, DashboardStatistics, HazardTypeResponse, HospitalResponse,
   IncidentResponse, IncidentStatus, ResourceRecommendation, ResourceResponse,
-  Severity, ShelterResponse, TokenResponse,
+  SafetyCheckin, Severity, ShelterResponse, TokenResponse,
 } from "./types";
 
 const BASE_URL_KEY = "rescuenet_backend_base_url";
@@ -159,12 +159,18 @@ export const api = {
 
   clearAlert: (id: string) => request<void>(`/api/alerts/${id}`, { method: "DELETE" }),
 
+  listSafetyCheckins: () => request<SafetyCheckin[]>("/api/safety/checkins"),
+
   dashboardStatistics: () => request<DashboardStatistics>("/api/dashboard/statistics"),
 };
 
 export function websocketUrl(): string {
   const base = getBaseUrl().replace(/^http/, "ws");
-  return `${base}/ws/incidents`;
+  // Browsers can't set an Authorization header on a WebSocket, so the staff login token goes in
+  // the address. Without it the feed still works, but without callers' phone numbers or
+  // safe/unsafe status — those are only sent to logged-in staff.
+  const token = getToken();
+  return `${base}/ws/incidents${token ? `?token=${encodeURIComponent(token)}` : ""}`;
 }
 
 export { ApiError };

@@ -47,6 +47,7 @@ data class FamilyMember(
     val name: String,
     val status: SafetyStatus,
     val lastUpdatedLabel: String,
+    val phone: String? = null,
 )
 
 

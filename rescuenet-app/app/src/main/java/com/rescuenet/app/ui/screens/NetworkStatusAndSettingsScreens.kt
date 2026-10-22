@@ -3,12 +3,15 @@
 package com.rescuenet.app.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rescuenet.app.data.viewmodel.HomeViewModel
+import com.rescuenet.app.ui.components.MyPhoneField
 import com.rescuenet.app.ui.components.NetworkStatusBanner
 
 @Composable
@@ -44,10 +47,15 @@ fun SettingsScreen(
     var urlDraft by remember(backendBaseUrl) { mutableStateOf(backendBaseUrl) }
 
     Scaffold(topBar = { TopAppBar(title = { Text("Settings") }) }) { padding ->
-        Column(Modifier.padding(padding).padding(horizontal = 20.dp)) {
+        Column(Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
             SettingsSwitchRow("Dark mode", darkMode, onDarkModeChange)
             SettingsSwitchRow("Large text", largeText, onLargeTextChange)
             SettingsSwitchRow("High contrast", highContrast, onHighContrastChange)
+
+            Spacer(Modifier.height(24.dp))
+            Text("My phone number", style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.height(8.dp))
+            MyPhoneField()
 
             Spacer(Modifier.height(24.dp))
             Text("Developer / Demo", style = MaterialTheme.typography.titleLarge)
@@ -76,6 +84,7 @@ fun SettingsScreen(
             Spacer(Modifier.height(8.dp))
             Text(
                 "Location is only shared when you send a report or an \"I'm Safe\" update. " +
+                        "If you add your phone number, it is sent with those too, so rescuers can call you back. " +
                         "Reports are stored locally, encrypted, and kept only as long as needed for response and safety records. " +
                         "You can review or delete your data at any time.",
                 style = MaterialTheme.typography.bodyMedium

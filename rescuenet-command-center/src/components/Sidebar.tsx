@@ -5,6 +5,7 @@ const links = [
   { to: "/", label: "Dashboard", icon: "\u25A4" },
   { to: "/map", label: "Live Map", icon: "\u25C9" },
   { to: "/incidents", label: "Incidents", icon: "\u2691" },
+  { to: "/safety", label: "Safe check-ins", icon: "\u2713" },
   { to: "/clusters", label: "AI Clusters", icon: "\u2728" },
   { to: "/resources", label: "Resources", icon: "\u2699" },
   { to: "/alerts", label: "Alerts", icon: "\u26A0" },

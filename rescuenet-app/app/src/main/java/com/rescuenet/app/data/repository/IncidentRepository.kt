@@ -7,10 +7,9 @@ import com.rescuenet.app.data.local.entity.SyncQueueEntity
 import com.rescuenet.app.data.mesh.MeshRelayManager
 import com.rescuenet.app.data.model.*
 import com.rescuenet.app.data.offline.OfflineQueueManager
+import com.rescuenet.app.data.settings.SettingsDataStore
 import kotlinx.coroutines.flow.Flow
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.coroutines.flow.first
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -21,6 +20,7 @@ class IncidentRepository @Inject constructor(
     private val syncQueueDao: SyncQueueDao,
     private val offlineQueueManager: OfflineQueueManager,
     private val meshRelayManager: MeshRelayManager,
+    private val settingsDataStore: SettingsDataStore,
 ) {
     fun observeIncidents(): Flow<List<IncidentEntity>> = incidentDao.observeAll()
 
@@ -58,7 +58,9 @@ class IncidentRepository @Inject constructor(
         )
         incidentDao.upsert(entity)
 
-        val payload = buildJsonPayload(entity)
+        // The number the person chose to share so rescuers can call them back (blank = none).
+        val reporterPhone = settingsDataStore.myPhone.first().ifBlank { null }
+        val payload = buildJsonPayload(entity, reporterPhone)
         syncQueueDao.enqueue(
             SyncQueueEntity(
                 eventUuid = eventUuid,
@@ -83,21 +85,17 @@ class IncidentRepository @Inject constructor(
     suspend fun getSyncState(eventUuid: String): SyncState? =
         incidentDao.getByUuid(eventUuid)?.syncState
 
-    private fun buildJsonPayload(entity: IncidentEntity): String {
-        // Minimal, human-inspectable payload for the Phase 3 local queue. Phase 5 replaces
-        // this with the full EmergencyIncidents schema shape from Part 9 once there's a real
-        // POST /api/incidents endpoint to send it to.
-        val obj = JsonObject(
-            mapOf(
-                "event_uuid" to JsonPrimitive(entity.eventUuid),
-                "type" to JsonPrimitive(entity.type.name),
-                "people_count" to JsonPrimitive(entity.peopleCount),
-                "injury_level" to JsonPrimitive(entity.injuryLevel.name),
-                "description" to JsonPrimitive(entity.description),
-                "latitude" to (entity.latitude?.let { JsonPrimitive(it) } ?: JsonPrimitive("unknown")),
-                "longitude" to (entity.longitude?.let { JsonPrimitive(it) } ?: JsonPrimitive("unknown")),
-            )
+    private fun buildJsonPayload(entity: IncidentEntity, reporterPhone: String?): String =
+        buildIncidentPayloadJson(
+            eventUuid = entity.eventUuid,
+            type = entity.type.name,
+            peopleCount = entity.peopleCount,
+            injuryLevel = entity.injuryLevel.name,
+            description = entity.description,
+            needs = entity.needs.map { it.name },
+            latitude = entity.latitude,
+            longitude = entity.longitude,
+            locationAccuracyM = entity.locationAccuracyM,
+            reporterPhone = reporterPhone,
         )
-        return Json.encodeToString(JsonObject.serializer(), obj)
-    }
 }

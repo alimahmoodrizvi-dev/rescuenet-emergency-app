@@ -32,6 +32,7 @@ class SettingsDataStore @Inject constructor(
         val LARGE_TEXT = booleanPreferencesKey("large_text")
         val HIGH_CONTRAST = booleanPreferencesKey("high_contrast")
         val BACKEND_BASE_URL = stringPreferencesKey("backend_base_url")
+        val MY_PHONE = stringPreferencesKey("my_phone")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -41,6 +42,14 @@ class SettingsDataStore @Inject constructor(
             highContrast = prefs[Keys.HIGH_CONTRAST] ?: false,
             backendBaseUrl = prefs[Keys.BACKEND_BASE_URL] ?: BackendApiClient.DEFAULT_BASE_URL,
         )
+    }
+
+    /** The number the user chose to share with rescuers so they can call them back. Empty if none. */
+    val myPhone: Flow<String> = context.dataStore.data.map { prefs -> prefs[Keys.MY_PHONE] ?: "" }
+
+    /** Stores an already-normalised number; a blank value removes it. */
+    suspend fun setMyPhone(value: String) = context.dataStore.edit {
+        if (value.isBlank()) it.remove(Keys.MY_PHONE) else it[Keys.MY_PHONE] = value
     }
 
     suspend fun setDarkMode(value: Boolean) = context.dataStore.edit { it[Keys.DARK_MODE] = value }

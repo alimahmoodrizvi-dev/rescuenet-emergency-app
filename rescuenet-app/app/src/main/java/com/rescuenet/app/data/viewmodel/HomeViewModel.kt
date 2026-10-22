@@ -89,9 +89,9 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { familyRepository.markSelfSafe() }
     }
 
-    fun addFamilyMember(name: String, onResult: (AddMemberResult) -> Unit) {
+    fun addFamilyMember(name: String, phone: String, onResult: (AddMemberResult) -> Unit) {
         viewModelScope.launch {
-            onResult(familyRepository.addMember(name))
+            onResult(familyRepository.addMember(name, phone))
         }
     }
 
@@ -129,5 +129,5 @@ private fun FamilyMemberEntity.toUiModel(): FamilyMember {
         minutesAgo < 60 -> "${minutesAgo}m ago"
         else -> "${minutesAgo / 60}h ago"
     }
-    return FamilyMember(id = id, name = name, status = status, lastUpdatedLabel = label)
+    return FamilyMember(id = id, name = name, status = status, lastUpdatedLabel = label, phone = phone)
 }
