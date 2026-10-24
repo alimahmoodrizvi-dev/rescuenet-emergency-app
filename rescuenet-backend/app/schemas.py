@@ -2,8 +2,9 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.phone import lenient_float, normalize_phone
 from app.models import (
     AlertSeverity, IncidentStatus, IncidentType, InjuryLevel, ResourceStatus,
     ResourceType, SafetyStatus, Severity, UserRole,
@@ -51,6 +52,21 @@ class IncidentCreateRequest(BaseModel):
     longitude: Optional[float] = None
     location_accuracy_m: Optional[float] = None
     source: str = "app"
+    # Optional number the reporter chose to share so rescuers can call them back.
+    reporter_phone: Optional[str] = None
+
+    # A report must never be rejected over its optional extras. Older app builds send the TEXT
+    # "unknown" for latitude/longitude when they have no GPS fix, which used to fail validation,
+    # so the whole report was refused (and retried forever). Treat non-numbers as "no location".
+    @field_validator("latitude", "longitude", "location_accuracy_m", mode="before")
+    @classmethod
+    def _non_numbers_become_none(cls, value):
+        return lenient_float(value)
+
+    @field_validator("reporter_phone", mode="before")
+    @classmethod
+    def _clean_phone(cls, value):
+        return normalize_phone(value)
 
 
 class IncidentUpdateRequest(BaseModel):
@@ -73,6 +89,12 @@ class IncidentResponse(ORMBase):
     source: str
     created_at: datetime
     updated_at: datetime
+    # Staff-only fields. Always None on any response a citizen's device can receive; filled in
+    # by incident_view.build_responses() for authenticated Command Center staff.
+    reporter_phone: Optional[str] = None
+    # What the reporter said about themselves *since* this report ("SAFE"), and when.
+    reporter_status: Optional[str] = None
+    reporter_status_at: Optional[datetime] = None
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +105,31 @@ class SafetyStatusRequest(BaseModel):
     status: SafetyStatus
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    phone: Optional[str] = None
+
+    @field_validator("latitude", "longitude", mode="before")
+    @classmethod
+    def _non_numbers_become_none(cls, value):
+        return lenient_float(value)
+
+    @field_validator("phone", mode="before")
+    @classmethod
+    def _clean_phone(cls, value):
+        return normalize_phone(value)
+
+
+class SafetyCheckinResponse(BaseModel):
+    """Latest self-reported status of one person, for the Command Center's check-ins page."""
+    user_id: str
+    label: str  # the person's name if known, otherwise a short anonymous device label
+    phone: Optional[str] = None
+    status: SafetyStatus
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    updated_at: datetime
+    # The most recent not-yet-closed incident this person reported, if any.
+    open_incident_id: Optional[str] = None
+    open_incident_type: Optional[str] = None
 
 
 class FamilyMemberStatusResponse(BaseModel):

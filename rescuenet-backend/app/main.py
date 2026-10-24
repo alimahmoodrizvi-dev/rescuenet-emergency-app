@@ -1,11 +1,14 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from app import incident_view
+from app.auth import decode_token
 from app.config import settings
 from app.database import Base, SessionLocal, engine
-from app.models import AlertType, HazardType, Hospital, Resource, ResourceStatus, ResourceType, Shelter
+from app.migrations import ensure_columns
+from app.models import AlertType, HazardType, Hospital, Resource, ResourceStatus, ResourceType, Shelter, User
 from app.routers import ai, alerts, auth, dashboard, hazard_types, incidents, places, resources, routes, safety, sync
 from app.websocket import manager
 
@@ -13,6 +16,7 @@ from app.websocket import manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    ensure_columns(engine)
     _seed_demo_reference_data()
     _seed_default_hazard_types()
     yield
@@ -60,12 +64,32 @@ def health():
     return {"status": "healthy"}
 
 
+def _is_staff_token(token) -> bool:
+    if not token:
+        return False
+    try:
+        payload = decode_token(token)
+    except HTTPException:
+        return False
+    db = SessionLocal()
+    try:
+        user = db.get(User, payload.get("sub"))
+        return user is not None and user.role in incident_view.STAFF_ROLES
+    finally:
+        db.close()
+
+
 @app.websocket("/ws/incidents")
 async def ws_incidents(websocket: WebSocket):
     """Part 10/23 — live push channel for the Command Center. On connect, no history is
     replayed; clients call GET /api/incidents first for the current snapshot, then rely on
-    this socket for live deltas (created/updated incidents, resource assignments, alerts)."""
-    await manager.connect(websocket)
+    this socket for live deltas (created/updated incidents, resource assignments, alerts).
+
+    Anonymous connections are still accepted (as before) but only receive scrubbed events —
+    no phone numbers, no safe/unsafe status. Staff connections get everything. A browser can't
+    set an Authorization header on a WebSocket, so staff pass their login token as the `token`
+    query parameter."""
+    await manager.connect(websocket, is_staff=_is_staff_token(websocket.query_params.get("token")))
     try:
         while True:
             # This endpoint is push-only from the server's side; we still need to await

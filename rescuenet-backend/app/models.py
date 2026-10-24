@@ -131,6 +131,9 @@ class User(Base):
 
     id = Column(String, primary_key=True, default=gen_uuid)
     phone_hash = Column(String, nullable=True, index=True)
+    # Raw number, only ever filled in when the person chose to share it with rescuers (so the
+    # Command Center can call them back). Never exposed by a public endpoint; see incident_view.py.
+    phone = Column(String, nullable=True)
     name = Column(String, nullable=True)
     role = Column(SAEnum(UserRole), nullable=False, default=UserRole.CITIZEN)
     language_pref = Column(String, default="en")
@@ -184,6 +187,9 @@ class EmergencyIncident(Base):
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
     location_accuracy_m = Column(Float, nullable=True)
+    # Snapshot of the number the reporter shared *at the time of this report*, so responders
+    # can call them back about this specific incident even if the number later changes.
+    reporter_phone = Column(String, nullable=True)
 
     status = Column(SAEnum(IncidentStatus), default=IncidentStatus.OPEN)
     source = Column(String, default="app")  # "app" | "relay" | "manual"

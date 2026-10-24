@@ -63,6 +63,22 @@ def get_current_user(
     return user
 
 
+def optional_current_user(
+    token: Optional[str] = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """Like get_current_user, but anonymous callers are allowed: returns None if there's no
+    token or it's invalid, instead of rejecting the request. Used by endpoints that stay
+    publicly readable but show extra private details to logged-in staff."""
+    if token is None:
+        return None
+    try:
+        payload = decode_token(token)
+    except HTTPException:
+        return None
+    return db.get(User, payload.get("sub"))
+
+
 def require_roles(*allowed: UserRole):
     """Dependency factory for role-gated endpoints (Part 24). Usage:
     `current_user: User = Depends(require_roles(UserRole.COMMAND_CENTER_ADMIN))`"""
